@@ -207,6 +207,62 @@ case "$CMD" in
         ;;
     
     # =========================================================================
+    # Setup & Validation
+    # =========================================================================
+    
+    setup)
+        info "Running interactive setup..."
+        if [ -x "$SCRIPT_DIR/setup.sh" ]; then
+            "$SCRIPT_DIR/setup.sh"
+        else
+            error "Setup script not found: $SCRIPT_DIR/setup.sh"
+        fi
+        ;;
+    
+    validate)
+        info "Validating configuration..."
+        
+        # Check env files
+        local missing=0
+        for env_file in core; do
+            if [ ! -f "env/.env.$env_file" ]; then
+                error "Missing env/.env.$env_file"
+                ((missing++))
+            else
+                success "Found env/.env.$env_file"
+            fi
+        done
+        
+        # Check for placeholders
+        if [ -f "env/.env.core" ]; then
+            if grep -q "change-me" env/.env.core; then
+                warn "env/.env.core contains 'change-me' placeholders"
+                info "Run: ./orionctl.sh setup"
+            fi
+        fi
+        
+        # Check Docker
+        if docker ps &> /dev/null; then
+            success "Docker daemon is running"
+        else
+            error "Cannot connect to Docker daemon"
+            info "Try: sudo systemctl start docker"
+        fi
+        
+        # Check directories
+        if [ -f "env/.env.core" ]; then
+            local config_root=$(grep CONFIG_ROOT env/.env.core | cut -d'=' -f2)
+            if [ -d "$config_root" ]; then
+                success "Config directory exists: $config_root"
+            else
+                warn "Config directory not found: $config_root"
+            fi
+        fi
+        
+        [ $missing -eq 0 ] && success "Validation complete!" || warn "Please fix issues above"
+        ;;
+    
+    # =========================================================================
     # Help
     # =========================================================================
     
@@ -216,6 +272,10 @@ orionctl - Orion-Sentinel-CoreSrv Control Script
 
 USAGE:
     ./orionctl.sh COMMAND [OPTIONS]
+
+SETUP COMMANDS:
+    setup           Run interactive setup wizard (first-time setup)
+    validate        Validate configuration and prerequisites
 
 STARTUP COMMANDS:
     up-core         Start core services only (Traefik + Authelia)
@@ -239,6 +299,12 @@ MAINTENANCE:
     backup          Run backup script
 
 EXAMPLES:
+    # First-time setup
+    ./orionctl.sh setup
+
+    # Validate configuration
+    ./orionctl.sh validate
+
     # Start just core services for testing
     ./orionctl.sh up-core
 
@@ -258,11 +324,12 @@ EXAMPLES:
     ./orionctl.sh down
 
 NOTES:
-    - Ensure .env files are created from .env.*.example templates
+    - For first-time setup, run: ./orionctl.sh setup
+    - Ensure .env files are created (setup script does this automatically)
     - Run from the repository root or use the full path to this script
     - All commands use Docker Compose under the hood
 
-For more information, see: docs/SETUP-CoreSrv.md
+For more information, see: INSTALL.md or docs/SETUP-CoreSrv.md
 EOF
         ;;
     

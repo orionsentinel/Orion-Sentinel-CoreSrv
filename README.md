@@ -37,76 +37,68 @@ Internet → Router → [CoreSrv] + [Pi DNS] + [Pi NetSec]
 
 ## Quick Start
 
-### 1. Prerequisites
+Get up and running in **5 simple steps**:
 
-- Ubuntu Server 24.04 LTS or Debian 12
-- Docker Engine + Docker Compose plugin
-- 16GB+ RAM, 500GB+ storage recommended
-- Static IP on LAN
+### 1. Install Docker
+
+```bash
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+sudo apt install -y docker-compose-plugin
+# Log out and back in
+```
 
 ### 2. Clone Repository
 
 ```bash
-git clone https://github.com/yorgosroussakis/Orion-Sentinel-CoreSrv.git
+git clone https://github.com/orionsentinel/Orion-Sentinel-CoreSrv.git
 cd Orion-Sentinel-CoreSrv
 ```
 
-### 3. Create Directory Structure
+### 3. Run Setup Script
+
+The setup script will configure everything automatically:
 
 ```bash
-sudo mkdir -p /srv/orion-sentinel-core/{config,data,media,cloud,monitoring}
-sudo mkdir -p /srv/orion-sentinel-core/media/{torrents,library}/{movies,tv}
-sudo mkdir -p /srv/orion-sentinel-core/cloud/{db,app,data}
-sudo chown -R $USER:$USER /srv/orion-sentinel-core
+./scripts/setup.sh
 ```
 
-### 4. Configure Environment
+This interactive script will:
+- ✅ Check prerequisites
+- ✅ Create directory structure
+- ✅ Configure environment files with secure generated secrets
+- ✅ Validate your setup
 
-```bash
-# Copy example environment files
-cp env/.env.core.example env/.env.core
-cp env/.env.media.example env/.env.media
-cp env/.env.monitoring.example env/.env.monitoring
-cp env/.env.cloud.example env/.env.cloud
-cp env/.env.search.example env/.env.search
-cp env/.env.home-automation.example env/.env.home-automation
-cp env/.env.maintenance.example env/.env.maintenance
-
-# Edit each file and replace placeholders
-vim env/.env.core    # Generate Authelia secrets, set domain
-vim env/.env.media   # Add VPN credentials, set paths
-# ... etc.
-```
-
-### 5. Start Services
+### 4. Start Services
 
 ```bash
 # Start core services (Traefik + Authelia)
-docker compose --profile core up -d
+./orionctl.sh up-core
 
-# Start media stack
-docker compose --profile media-core up -d
-
-# Start all services
-docker compose --profile core --profile media-core --profile media-ai --profile cloud --profile search --profile monitoring --profile maintenance up -d
+# Or start everything
+./orionctl.sh up-full
 ```
 
-### 6. Access Services
+### 5. Access Services
 
-All services accessible via HTTPS with Authelia SSO:
+All services are accessible via HTTPS with Authelia SSO:
 
+- **Authelia (SSO):** https://auth.local
+- **Traefik (Dashboard):** https://traefik.local
 - **Homepage Dashboard:** https://home.local
 - **Jellyfin:** https://jellyfin.local
 - **Jellyseerr:** https://requests.local
 - **Grafana:** https://grafana.local
 - **Nextcloud:** https://cloud.local
 - **SearXNG:** https://search.local
-- **Authelia:** https://auth.local
+
+**📖 For detailed installation instructions, see [INSTALL.md](INSTALL.md)**
 
 ## Documentation
 
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Complete 3-node system architecture
+- **[INSTALL.md](INSTALL.md)** - ⚡ **Quick installation guide (start here!)**
 - **[SETUP-CoreSrv.md](docs/SETUP-CoreSrv.md)** - Detailed CoreSrv setup guide
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Complete 3-node system architecture
 - **[UPSTREAM-SYNC.md](docs/UPSTREAM-SYNC.md)** - Sync workflow for upstream updates
 - **[CREDITS.md](docs/CREDITS.md)** - Acknowledgements and licenses
 
