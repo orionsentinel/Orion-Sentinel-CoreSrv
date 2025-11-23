@@ -1,0 +1,44 @@
+# Grafana Dashboard Provisioning
+# This file tells Grafana where to find dashboard JSON files
+# See: https://grafana.com/docs/grafana/latest/administration/provisioning/#dashboards
+
+apiVersion: 1
+
+providers:
+  # Dashboard provider for Orion Sentinel dashboards
+  - name: 'Orion Sentinel Dashboards'
+    orgId: 1
+    folder: 'Orion Sentinel'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/orion
+      foldersFromFilesStructure: true
+
+# TODO: Add dashboard JSON files to monitoring/grafana/dashboards/orion/
+#
+# Recommended dashboards to import and export:
+#
+# 1. Node Exporter Full (ID: 1860)
+#    wget https://grafana.com/api/dashboards/1860/revisions/latest/download \
+#      -O monitoring/grafana/dashboards/orion/node-exporter.json
+#
+# 2. Docker Container & Host Metrics (ID: 179)
+#    wget https://grafana.com/api/dashboards/179/revisions/latest/download \
+#      -O monitoring/grafana/dashboards/orion/docker-containers.json
+#
+# 3. Traefik 2.x (ID: 12250)
+#    wget https://grafana.com/api/dashboards/12250/revisions/latest/download \
+#      -O monitoring/grafana/dashboards/orion/traefik.json
+#
+# 4. Loki Dashboard (ID: 13639)
+#    wget https://grafana.com/api/dashboards/13639/revisions/latest/download \
+#      -O monitoring/grafana/dashboards/orion/loki-dashboard.json
+#
+# 5. Pi-hole Exporter (ID: 10176)
+#    wget https://grafana.com/api/dashboards/10176/revisions/latest/download \
+#      -O monitoring/grafana/dashboards/orion/pihole.json
+#
+# Alternatively, import via Grafana UI and export to JSON manually

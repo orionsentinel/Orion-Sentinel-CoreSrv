@@ -1,0 +1,133 @@
+# Traefik Static Configuration
+# See: https://doc.traefik.io/traefik/reference/static-configuration/file/
+
+# ============================================================================
+# Global Configuration
+# ============================================================================
+global:
+  checkNewVersion: true
+  sendAnonymousUsage: false
+
+# ============================================================================
+# Logging
+# ============================================================================
+log:
+  level: INFO
+  # Options: DEBUG, INFO, WARN, ERROR, FATAL, PANIC
+  # For troubleshooting, set to DEBUG
+
+# Access logs for request tracking
+accessLog:
+  # Uncomment to write access logs to file
+  # filePath: "/var/log/traefik/access.log"
+  # format: json
+  bufferingSize: 100
+
+# ============================================================================
+# API & Dashboard
+# ============================================================================
+api:
+  dashboard: true
+  # Dashboard accessible via Traefik labels in compose.yml
+  # Access at: https://traefik.local (protected by Authelia once configured)
+
+# ============================================================================
+# Entry Points
+# ============================================================================
+entryPoints:
+  web:
+    address: ":80"
+    # Redirect all HTTP to HTTPS (secure by default)
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        # Minimum TLS version for security
+        options: default
+      # Security headers and middlewares applied globally
+      middlewares:
+        - security-headers@file
+        - compression@file
+  
+  # Metrics endpoint for Prometheus (internal only)
+  metrics:
+    address: ":8082"
+
+# ============================================================================
+# Providers
+# ============================================================================
+providers:
+  # Docker provider for automatic service discovery
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    # Only services with traefik.enable=true will be exposed
+    network: orion_proxy
+    # Default network for services (can be overridden per service)
+  
+  # File provider for dynamic configuration
+  file:
+    directory: "/etc/traefik/dynamic"
+    watch: true
+    # Automatically reload when files change
+
+# ============================================================================
+# Certificate Resolvers (ACME / Let's Encrypt)
+# ============================================================================
+# Uncomment and configure when ready to use Let's Encrypt
+# certificatesResolvers:
+#   letsencrypt:
+#     acme:
+#       email: "${TRAEFIK_ACME_EMAIL}"
+#       storage: "/acme/acme.json"
+#       
+#       # HTTP-01 Challenge (requires port 80 accessible from internet)
+#       # httpChallenge:
+#       #   entryPoint: web
+#       
+#       # DNS-01 Challenge (recommended, works with wildcards)
+#       # Requires DNS provider API credentials
+#       dnsChallenge:
+#         provider: "${TRAEFIK_ACME_DNS_PROVIDER}"
+#         # Examples: cloudflare, route53, digitalocean, etc.
+#         # See: https://doc.traefik.io/traefik/https/acme/#providers
+#         delayBeforeCheck: 0
+#         resolvers:
+#           - "1.1.1.1:53"
+#           - "8.8.8.8:53"
+#       
+#       # Use staging for testing (avoid rate limits)
+#       # caServer: "https://acme-staging-v02.api.letsencrypt.org/directory"
+#       
+#       # Production Let's Encrypt
+#       # caServer: "https://acme-v02.api.letsencrypt.org/directory"
+
+# ============================================================================
+# Metrics (Prometheus scraping)
+# ============================================================================
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+    buckets:
+      - 0.1
+      - 0.3
+      - 1.2
+      - 5.0
+    entryPoint: metrics
+    # Expose metrics at :8082/metrics for Prometheus
+
+# ============================================================================
+# Additional Entry Points
+# ============================================================================
+# Note: This extends the entryPoints section defined earlier
+# Metrics endpoint (internal only - not exposed to internet)
+# Access via: http://traefik:8082/metrics from Prometheus

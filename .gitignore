@@ -1,0 +1,173 @@
+# Orion-Sentinel-CoreSrv .gitignore
+# Ignore all secrets, configs, and data that should not be in version control
+
+# =============================================================================
+# ENVIRONMENT FILES (contain secrets)
+# =============================================================================
+# Never commit actual .env files - only commit .env.*.example templates
+*.env
+.env
+env/*.env
+!env/.env.*.example
+
+# =============================================================================
+# SERVICE CONFIGURATIONS (may contain secrets or sensitive data)
+# =============================================================================
+# These are generated at runtime and may contain API keys, passwords, etc.
+core/traefik/acme.json
+core/authelia/configuration.yml
+core/authelia/users.yml
+core/authelia/db.sqlite3
+core/authelia/notifications.txt
+
+media/config/*/
+!media/config/.gitkeep
+
+monitoring/prometheus/data/
+monitoring/grafana/data/
+monitoring/loki/data/
+monitoring/promtail/data/
+
+cloud/nextcloud/*
+!cloud/nextcloud/.gitkeep
+
+# Allow example/template settings, ignore actual runtime settings
+# search/searxng/settings.yml  # Template is OK to commit
+# If you customize, copy to settings.local.yml which will be git-ignored
+
+home-automation/homeassistant/*
+!home-automation/homeassistant/.gitkeep
+
+maintenance/homepage/services.yml
+maintenance/homepage/widgets.yml
+maintenance/homepage/bookmarks.yml
+
+# =============================================================================
+# DATA DIRECTORIES (actual service data)
+# =============================================================================
+# These contain the actual data (media files, databases, etc.)
+*/data/
+*/media/
+*/downloads/
+
+# =============================================================================
+# DOCKER & RUNTIME
+# =============================================================================
+# Docker Compose override files (for local customization)
+docker-compose.override.yml
+compose.override.yml
+
+# Container logs
+*.log
+
+# =============================================================================
+# SECRETS (explicit secret files)
+# =============================================================================
+secrets/*
+!secrets/README.md
+!secrets/.gitkeep
+
+# Specific secret files
+*.key
+*.pem
+*.crt
+*.cert
+*.p12
+*.pfx
+id_rsa*
+*.gpg
+
+# =============================================================================
+# BACKUP FILES
+# =============================================================================
+*.backup
+*.bak
+*.old
+*.orig
+*.swp
+*.swo
+*~
+
+# Compressed backups
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+
+# =============================================================================
+# TEMPORARY FILES
+# =============================================================================
+tmp/
+temp/
+*.tmp
+
+# =============================================================================
+# OS-SPECIFIC
+# =============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+.directory
+.Trash-*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =============================================================================
+# IDE / EDITOR
+# =============================================================================
+# VSCode
+.vscode/
+*.code-workspace
+
+# JetBrains (PyCharm, IntelliJ, etc.)
+.idea/
+*.iml
+
+# Vim
+*.swp
+*.swo
+.*.sw?
+
+# Emacs
+*~
+\#*\#
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# =============================================================================
+# PYTHON (if using Python scripts for automation)
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+.venv
+
+# =============================================================================
+# NODE.JS (if using Node.js scripts)
+# =============================================================================
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# =============================================================================
+# CUSTOM EXCLUSIONS
+# =============================================================================
+# Add any custom files/folders to ignore below this line
+
+# Local testing overrides
+test-compose.yml
+local-override.yml

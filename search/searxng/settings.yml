@@ -1,0 +1,198 @@
+# SearXNG Configuration
+# See: https://docs.searxng.org/admin/settings/index.html
+
+general:
+  instance_name: "Orion Search"
+  privacypolicy_url: false
+  donation_url: false
+  contact_url: false
+  enable_metrics: false
+
+server:
+  # Secret key - MUST be changed! Use: openssl rand -hex 32
+  secret_key: "REPLACE_WITH_SECRET_FROM_ENV_FILE"
+  
+  limiter: false  # Enable if you want rate limiting
+  image_proxy: true  # Prevents tracking via result images
+  
+  bind_address: "0.0.0.0"
+  port: 8080
+  
+  # Uncomment if behind reverse proxy (Traefik)
+  base_url: "https://search.local"
+
+search:
+  safe_search: 0  # 0=off, 1=moderate, 2=strict
+  autocomplete: "google"  # Options: google, duckduckgo, startpage, false
+  default_lang: "en"
+  formats:
+    - html
+    - json
+
+ui:
+  static_use_hash: true
+  default_locale: "en"
+  theme_args:
+    simple_style: auto  # auto, light, dark
+  results_on_new_tab: false
+  advanced_search: true
+  query_in_title: false
+  infinite_scroll: false
+  center_alignment: false
+
+# Engines configuration
+# Enabled engines - customize as needed
+engines:
+  # General Search
+  - name: google
+    engine: google
+    shortcut: g
+    disabled: false
+    
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+    
+  - name: brave
+    engine: brave
+    shortcut: br
+    disabled: false
+    
+  - name: bing
+    engine: bing
+    shortcut: b
+    disabled: true  # Disabled by default
+    
+  - name: qwant
+    engine: qwant
+    shortcut: q
+    disabled: false
+
+  # Wikipedia
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    disabled: false
+
+  # IT & Development
+  - name: github
+    engine: github
+    shortcut: gh
+    disabled: false
+    
+  - name: stackoverflow
+    engine: stackoverflow
+    shortcut: so
+    disabled: false
+    
+  - name: dockerhub
+    engine: docker_hub
+    shortcut: dh
+    disabled: false
+
+  # Video
+  - name: youtube
+    engine: youtube
+    shortcut: yt
+    disabled: false
+    
+  - name: dailymotion
+    engine: dailymotion
+    shortcut: dm
+    disabled: true
+
+  # News
+  - name: google news
+    engine: google_news
+    shortcut: gn
+    disabled: false
+    
+  - name: bing news
+    engine: bing_news
+    shortcut: bn
+    disabled: true
+
+  # Images
+  - name: google images
+    engine: google_images
+    shortcut: gi
+    disabled: false
+    
+  - name: bing images
+    engine: bing_images
+    shortcut: bi
+    disabled: true
+
+  # Maps
+  - name: openstreetmap
+    engine: openstreetmap
+    shortcut: osm
+    disabled: false
+    
+  - name: google maps
+    engine: google_maps
+    shortcut: gm
+    disabled: true
+
+  # Files
+  - name: archive.org
+    engine: archive_org
+    shortcut: ao
+    disabled: false
+    
+  - name: wikimedia commons
+    engine: wikimedia_commons
+    shortcut: wc
+    disabled: false
+
+  # Science
+  - name: arxiv
+    engine: arxiv
+    shortcut: arx
+    disabled: false
+    
+  - name: pubmed
+    engine: pubmed
+    shortcut: pub
+    disabled: false
+    
+  - name: semantic scholar
+    engine: semantic_scholar
+    shortcut: se
+    disabled: false
+
+  # Reddit
+  - name: reddit
+    engine: reddit
+    shortcut: re
+    disabled: false
+
+# Privacy settings
+outgoing:
+  request_timeout: 3.0  # seconds
+  max_request_timeout: 10.0  # seconds
+  pool_connections: 100
+  pool_maxsize: 20
+  enable_http2: true
+
+# For rate limiting (optional)
+# limiter:
+#   enabled: true
+#   real_ip:
+#     x_for: 1
+#     ipv4_prefix: 32
+#     ipv6_prefix: 48
+#   botdetection:
+#     ip_limit:
+#       filter_link_local: true
+#       link_token: false
+
+# Result formatting
+result_proxy:
+  url: null  # If using external image proxy
+  key: null
+
+# DOI resolver
+# doi_resolvers:
+#   sci-hub.st: "https://sci-hub.st/"
