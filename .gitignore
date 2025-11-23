@@ -31,7 +31,9 @@ monitoring/promtail/data/
 cloud/nextcloud/*
 !cloud/nextcloud/.gitkeep
 
-search/searxng/settings.yml
+# Allow example/template settings, ignore actual runtime settings
+# search/searxng/settings.yml  # Template is OK to commit
+# If you customize, copy to settings.local.yml which will be git-ignored
 
 home-automation/homeassistant/*
 !home-automation/homeassistant/.gitkeep
