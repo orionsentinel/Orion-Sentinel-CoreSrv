@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+# Default configuration
+DEFAULT_BASE_DIR="/srv/orion-sentinel-core"
+
 # Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -123,8 +126,8 @@ check_prerequisites() {
     fi
     
     # Check available disk space
-    local available_space=$(df -BG "$REPO_ROOT" 2>/dev/null | awk 'NR==2 {print $4}' | sed 's/G//' || echo "0")
-    if [ -n "$available_space" ] && [ "$available_space" -gt 0 ]; then
+    local available_space=$(df -BG "$REPO_ROOT" 2>/dev/null | awk 'NR==2 {print $4}' | sed 's/[^0-9]//g' || echo "")
+    if [ -n "$available_space" ] && [ "$available_space" -eq "$available_space" ] 2>/dev/null; then
         if [ "$available_space" -gt 50 ]; then
             success "Sufficient disk space: ${available_space}GB available"
         else
@@ -146,7 +149,7 @@ check_prerequisites() {
 create_directories() {
     print_header "Creating Directory Structure"
     
-    local base_dir=$(prompt "Where should we create the data directories?" "/srv/orion-sentinel-core")
+    local base_dir=$(prompt "Where should we create the data directories?" "$DEFAULT_BASE_DIR")
     
     info "Creating directories at: $base_dir"
     
@@ -407,8 +410,8 @@ Documentation:
 
 Need Help?
 ──────────
-- Issues: https://github.com/yorgosroussakis/Orion-Sentinel-CoreSrv/issues
-- Docs:   https://github.com/yorgosroussakis/Orion-Sentinel-CoreSrv/tree/main/docs
+- Issues: https://github.com/orionsentinel/Orion-Sentinel-CoreSrv/issues
+- Docs:   https://github.com/orionsentinel/Orion-Sentinel-CoreSrv/tree/main/docs
 
 EOF
     
@@ -446,9 +449,6 @@ EOF
     
     check_not_root
     check_prerequisites
-    
-    # Default base directory
-    DEFAULT_BASE_DIR="/srv/orion-sentinel-core"
     
     # Ask what to set up
     local setup_dirs=false

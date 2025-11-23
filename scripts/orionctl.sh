@@ -36,6 +36,11 @@ error() {
     exit 1
 }
 
+# Validation error (doesn't exit)
+validation_error() {
+    echo -e "${RED}✗${NC} $*"
+}
+
 # Check if env files exist
 check_env_file() {
     local env_file="$1"
@@ -226,7 +231,7 @@ case "$CMD" in
         MISSING=0
         for env_file in core; do
             if [ ! -f "env/.env.$env_file" ]; then
-                error "Missing env/.env.$env_file"
+                validation_error "Missing env/.env.$env_file"
                 ((MISSING++))
             else
                 success "Found env/.env.$env_file"
@@ -245,7 +250,7 @@ case "$CMD" in
         if docker ps &> /dev/null; then
             success "Docker daemon is running"
         else
-            error "Cannot connect to Docker daemon"
+            validation_error "Cannot connect to Docker daemon"
             info "Try: sudo systemctl start docker"
         fi
         
@@ -259,7 +264,13 @@ case "$CMD" in
             fi
         fi
         
-        [ $MISSING -eq 0 ] && success "Validation complete!" || warn "Please fix issues above"
+        if [ $MISSING -eq 0 ]; then
+            success "Validation complete!"
+            exit 0
+        else
+            warn "Please fix issues above"
+            exit 1
+        fi
         ;;
     
     # =========================================================================
