@@ -1,0 +1,246 @@
+# Pi DNS Exporters - Docker Compose Configuration
+# Deploy this on Pi DNS node (192.168.8.240)
+# 
+# Purpose: Export metrics for Prometheus scraping by CoreSrv
+# 
+# Exporters:
+#   - node_exporter (port 9100): Host metrics (CPU, RAM, disk, network)
+#   - pihole_exporter (port 9617): Pi-hole DNS filtering metrics
+#   - unbound_exporter (port 9167): Unbound recursive DNS metrics
+#
+# Prerequisites:
+#   1. Pi-hole and Unbound running (either Docker or bare metal)
+#   2. Unbound remote-control enabled (see README.md)
+#   3. Pi-hole API token configured
+#   4. Docker and Docker Compose installed
+#
+# Setup:
+#   1. Copy this file to Pi DNS: docker-compose.yml
+#   2. Update PIHOLE_API_TOKEN with your actual Pi-hole API token
+#   3. Adjust network names if Pi-hole/Unbound use different networks
+#   4. Run: docker compose up -d
+#
+# Verify:
+#   docker compose ps
+#   curl http://localhost:9100/metrics  # node_exporter
+#   curl http://localhost:9617/metrics  # pihole_exporter
+#   curl http://localhost:9167/metrics  # unbound_exporter
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # node_exporter - Host-level metrics
+  # ===========================================================================
+  # Exports CPU, RAM, disk, network, filesystem metrics
+  # Used by Prometheus to monitor Pi DNS node health
+  
+  node-exporter:
+    image: prom/node-exporter:v1.8.1
+    container_name: node-exporter
+    restart: unless-stopped
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro,rslave
+    ports:
+      - "9100:9100"
+    network_mode: host
+    # Security: read-only root filesystem, drop all capabilities
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  # ===========================================================================
+  # pihole_exporter - Pi-hole metrics
+  # ===========================================================================
+  # Exports Pi-hole DNS filtering statistics
+  # Metrics: queries, blocks, clients, domains, top queries, etc.
+  
+  pihole-exporter:
+    image: ekofr/pihole-exporter:latest
+    container_name: pihole-exporter
+    restart: unless-stopped
+    environment:
+      # CRITICAL: Replace with your actual Pi-hole API token
+      # Get token from Pi-hole: Settings → API → Show API token
+      # Or via CLI: docker exec pihole pihole -a -p
+      PIHOLE_API_TOKEN: "REPLACE_WITH_YOUR_PIHOLE_API_TOKEN"
+      
+      # Pi-hole connection settings
+      # Adjust if your Pi-hole container has a different name
+      PIHOLE_HOSTNAME: "pihole"
+      PIHOLE_PORT: "80"
+      
+      # Exporter settings
+      INTERVAL: "15s"  # How often to scrape Pi-hole API
+      PORT: "9617"
+      
+      # Multi-instance support (if you have multiple Pi-hole instances)
+      # Uncomment and adjust:
+      # PIHOLE_HOSTNAME: "pihole1,pihole2"
+      # PIHOLE_PORT: "80,80"
+      # PIHOLE_API_TOKEN: "token1,token2"
+    ports:
+      - "9617:9617"
+    # Connect to Pi-hole network
+    # Adjust network name if your Pi-hole uses a different network
+    networks:
+      - default
+      - pihole_network  # Uncomment if Pi-hole uses custom network
+    security_opt:
+      - no-new-privileges:true
+
+  # ===========================================================================
+  # unbound_exporter - Unbound recursive DNS metrics
+  # ===========================================================================
+  # Exports Unbound performance metrics
+  # Metrics: queries, cache hits/misses, response times, etc.
+  
+  unbound-exporter:
+    image: svenstaro/unbound_exporter:latest
+    container_name: unbound-exporter
+    restart: unless-stopped
+    environment:
+      # Unbound connection method
+      # Option 1: Via unbound-control (recommended)
+      UNBOUND_HOST: "unbound"  # Unbound container name
+      UNBOUND_CONTROL_PATH: "/etc/unbound/unbound_control.sock"
+      
+      # Option 2: Via remote-control certificates
+      # UNBOUND_CA: "/etc/unbound/unbound_server.pem"
+      # UNBOUND_CERT: "/etc/unbound/unbound_control.pem"
+      # UNBOUND_KEY: "/etc/unbound/unbound_control.key"
+      
+      # Exporter settings
+      UNBOUND_EXPORTER_PORT: "9167"
+      UNBOUND_EXPORTER_LOG_LEVEL: "info"
+    ports:
+      - "9167:9167"
+    # Connect to Unbound network
+    # Adjust network name if your Unbound uses a different network
+    networks:
+      - default
+      - unbound_network  # Uncomment if Unbound uses custom network
+    volumes:
+      # Mount Unbound control socket or certificates
+      # Adjust paths based on your Unbound setup
+      # 
+      # Option 1: Mount control socket (Docker Unbound)
+      # - /var/run/unbound:/var/run/unbound:ro
+      #
+      # Option 2: Mount certificates
+      # - /etc/unbound:/etc/unbound:ro
+      #
+      # Option 3: If Unbound is on host (bare metal)
+      - /var/run/unbound:/var/run/unbound:ro
+    security_opt:
+      - no-new-privileges:true
+
+  # ===========================================================================
+  # promtail - Log forwarding to CoreSrv Loki (OPTIONAL)
+  # ===========================================================================
+  # Uncomment to send Pi DNS logs to CoreSrv for centralized log aggregation
+  
+  # promtail:
+  #   image: grafana/promtail:2.9.5
+  #   container_name: promtail
+  #   restart: unless-stopped
+  #   command: -config.file=/etc/promtail/config.yml
+  #   volumes:
+  #     - /var/lib/docker/containers:/var/lib/docker/containers:ro
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  #     - ./promtail-config.yml:/etc/promtail/config.yml:ro
+  #   networks:
+  #     - default
+  #   security_opt:
+  #     - no-new-privileges:true
+
+# ===========================================================================
+# Networks
+# ===========================================================================
+# Adjust network definitions based on your Pi-hole/Unbound setup
+
+networks:
+  default:
+    driver: bridge
+  
+  # Uncomment if your Pi-hole uses a custom network
+  # pihole_network:
+  #   external: true
+  #   name: pihole_default  # Adjust to match your Pi-hole network name
+  
+  # Uncomment if your Unbound uses a custom network
+  # unbound_network:
+  #   external: true
+  #   name: unbound_default  # Adjust to match your Unbound network name
+
+# ===========================================================================
+# Quick Start
+# ===========================================================================
+# 
+# 1. Get Pi-hole API token:
+#    docker exec pihole pihole -a -p
+#    # OR from web UI: Settings → API → Show API token
+#
+# 2. Update PIHOLE_API_TOKEN above
+#
+# 3. Verify Unbound remote-control is enabled:
+#    docker exec unbound unbound-control status
+#    # If not working, see README.md for setup instructions
+#
+# 4. Start exporters:
+#    docker compose up -d
+#
+# 5. Verify exporters:
+#    docker compose ps
+#    curl http://localhost:9100/metrics  # Should return metrics
+#    curl http://localhost:9617/metrics  # Should return metrics
+#    curl http://localhost:9167/metrics  # Should return metrics
+#
+# 6. Configure firewall (allow CoreSrv to scrape):
+#    sudo ufw allow from <coresrv-ip> to any port 9100 proto tcp
+#    sudo ufw allow from <coresrv-ip> to any port 9167 proto tcp
+#    sudo ufw allow from <coresrv-ip> to any port 9617 proto tcp
+#
+# 7. Verify from CoreSrv:
+#    # From CoreSrv, test connectivity:
+#    curl http://192.168.8.240:9100/metrics
+#    curl http://192.168.8.240:9617/metrics
+#    curl http://192.168.8.240:9167/metrics
+#
+# 8. Check Prometheus targets:
+#    https://prometheus.local/targets
+#    # Pi DNS targets should show UP:
+#    # - pi-dns-node (192.168.8.240:9100)
+#    # - pihole (192.168.8.240:9617)
+#    # - unbound (192.168.8.240:9167)
+#
+# ===========================================================================
+# Troubleshooting
+# ===========================================================================
+#
+# Exporters not starting:
+#   docker compose logs <service-name>
+#
+# No metrics from pihole_exporter:
+#   docker exec pihole-exporter wget -O- http://localhost:9617/metrics
+#   # Check PIHOLE_API_TOKEN is correct
+#
+# No metrics from unbound_exporter:
+#   docker exec unbound unbound-control status
+#   # Verify remote-control is enabled
+#
+# Prometheus can't scrape:
+#   # From CoreSrv:
+#   curl http://192.168.8.240:9100/metrics
+#   # Check firewall rules on Pi DNS
+#
+# See agents/pi-dns/README.md for detailed troubleshooting
