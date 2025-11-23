@@ -16,47 +16,11 @@
 # Example output:
 #   Digest: $argon2id$v=19$m=65536,t=3,p=4$abcd1234...
 
-# ============================================================================
-# User Definitions
-# ============================================================================
 users:
-  # Example user (admin)
-  yorgos:
-    displayname: "Yorgos"
-    # Replace with your actual password hash
-    password: "$argon2id$v=19$m=65536,t=3,p=4$REPLACE_WITH_ACTUAL_HASH"
-    email: "you@example.com"
-    groups:
-      - admins
-  
-  # Example user (family member)
-  # family:
-  #   displayname: "Family Member"
-  #   password: "$argon2id$v=19$m=65536,t=3,p=4$REPLACE_WITH_ACTUAL_HASH"
-  #   email: "family@example.com"
+  # yorgos:
+  #   displayname: "Yorgos"
+  #   password: "$argon2id$v=19$m=65536,t=3,p=4$REPLACE_ME"
+  #   email: "you@example.com"
   #   groups:
-  #     - users
+  #     - admins
 
-# ============================================================================
-# Groups
-# ============================================================================
-# Groups are defined implicitly by the groups array above
-# Common groups:
-#   - admins: Full access to all services
-#   - users: Limited access (e.g., Jellyfin only)
-#   - guests: Very limited access
-
-# ============================================================================
-# Quick Start
-# ============================================================================
-# 1. Generate a password hash:
-#    docker run --rm -it authelia/authelia:latest authelia crypto hash generate argon2 --password 'MySecurePassword123!'
-#
-# 2. Copy the hash and replace REPLACE_WITH_ACTUAL_HASH above
-#
-# 3. Update the displayname and email
-#
-# 4. Save this file (DO NOT commit to git!)
-#
-# 5. Restart Authelia:
-#    docker compose restart authelia
