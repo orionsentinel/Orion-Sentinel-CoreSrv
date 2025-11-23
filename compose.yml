@@ -11,7 +11,7 @@ services:
   ############################
 
   traefik:
-    image: traefik:latest
+    image: traefik:v3.2
     container_name: traefik
     profiles: ["core"]
     restart: unless-stopped
@@ -41,7 +41,7 @@ services:
       - "traefik.http.services.traefik.loadbalancer.server.port=8080"
 
   authelia:
-    image: authelia/authelia:latest
+    image: authelia/authelia:4.38.17
     container_name: authelia
     profiles: ["core"]
     restart: unless-stopped
