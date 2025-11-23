@@ -1,0 +1,20 @@
+# Traefik Dynamic Configuration - Authelia Middleware
+# See: https://doc.traefik.io/traefik/middlewares/http/forwardauth/
+
+http:
+  middlewares:
+    # Authelia ForwardAuth middleware
+    # Use this middleware to protect services with SSO
+    # Example usage in labels:
+    #   - "traefik.http.routers.myservice.middlewares=authelia-forwardauth@file"
+    authelia-forwardauth:
+      forwardAuth:
+        address: "http://authelia:9091/api/verify?rd=https://auth.local/"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - "Remote-User"
+          - "Remote-Groups"
+          - "Remote-Name"
+          - "Remote-Email"
+        # These headers are passed to the backend service
+        # Useful for accessing user info in the application

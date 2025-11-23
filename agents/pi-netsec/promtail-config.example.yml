@@ -1,0 +1,176 @@
+# Promtail Configuration for Pi 5 #2 (NetSec Pi)
+# Ship Docker container logs from NetSec/AI stack to CoreSrv Loki
+#
+# This configuration should be deployed on Pi 5 #2 (NetSec Pi) which runs:
+#   - Orion-sentinel-netsec-ai (network security monitoring)
+#   - Suricata (IDS/IPS)
+#   - AI pipeline for threat detection
+#   - Custom NSM tools
+#
+# All logs will be shipped to the central Loki instance on CoreSrv
+
+# ============================================================================
+# DEPLOYMENT INSTRUCTIONS
+# ============================================================================
+# 1. Copy this file to Pi 5 #2: /opt/promtail/config.yml
+# 2. Replace CORESRV_LAN_IP below with your CoreSrv's LAN IP (e.g., 192.168.1.100)
+# 3. Ensure CoreSrv Loki port 3100 is published and accessible from this Pi
+# 4. Deploy Promtail container (see docker run example below)
+#
+# Example docker command on Pi 5 #2:
+#
+# docker run -d --name promtail \
+#   --restart unless-stopped \
+#   -v /var/lib/docker/containers:/var/lib/docker/containers:ro \
+#   -v /var/run/docker.sock:/var/run/docker.sock:ro \
+#   -v /opt/promtail/config.yml:/etc/promtail/config.yml:ro \
+#   grafana/promtail:2.9.5 \
+#   -config.file=/etc/promtail/config.yml
+#
+# Or using docker-compose:
+#
+# services:
+#   promtail:
+#     image: grafana/promtail:2.9.5
+#     container_name: promtail
+#     restart: unless-stopped
+#     command: -config.file=/etc/promtail/config.yml
+#     volumes:
+#       - /var/lib/docker/containers:/var/lib/docker/containers:ro
+#       - /var/run/docker.sock:/var/run/docker.sock:ro
+#       - /opt/promtail/config.yml:/etc/promtail/config.yml:ro
+
+# ============================================================================
+# SERVER CONFIGURATION
+# ============================================================================
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+# ============================================================================
+# POSITIONS (log tailing state)
+# ============================================================================
+positions:
+  filename: /tmp/positions.yml
+
+# ============================================================================
+# LOKI CLIENT (CoreSrv)
+# ============================================================================
+clients:
+  - url: http://CORESRV_LAN_IP:3100/loki/api/v1/push
+    # ☝️ REPLACE CORESRV_LAN_IP with your CoreSrv's actual LAN IP
+    # Example: http://192.168.1.100:3100/loki/api/v1/push
+    
+    # Optional: Basic auth if you secure Loki
+    # basic_auth:
+    #   username: promtail
+    #   password: your-password-here
+    
+    # Optional: Backoff and retry settings
+    backoff_config:
+      min_period: 500ms
+      max_period: 5m
+      max_retries: 10
+    
+    # Optional: Limit sending rate
+    # tenant_id: pi-netsec
+
+# ============================================================================
+# SCRAPE CONFIGURATIONS
+# ============================================================================
+scrape_configs:
+  # Docker containers on Pi 5 #2 (NetSec Pi)
+  - job_name: pi-netsec-docker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: pi-netsec-docker
+          host: pi-netsec
+          node: pi-netsec
+          stack: netsec-ai
+          role: security-monitoring
+          environment: production
+          __path__: /var/lib/docker/containers/*/*-json.log
+    
+    # Pipeline stages to parse Docker JSON logs
+    pipeline_stages:
+      # Parse Docker JSON log format
+      - docker: {}
+      
+      # Optional: Extract security event severity from logs
+      # Useful for Suricata/IDS logs
+      # - regex:
+      #     expression: '.*Priority: (?P<priority>\d+).*'
+      # - labels:
+      #     priority:
+      
+      # Optional: Tag specific security events
+      # - match:
+      #     selector: '{job="pi-netsec-docker"} |~ "ALERT"'
+      #     stages:
+      #       - labels:
+      #           alert_type: security
+      
+      # Optional: Drop debug/verbose logs to reduce volume
+      # - match:
+      #     selector: '{job="pi-netsec-docker"} |~ "DEBUG"'
+      #     action: drop
+
+  # Optional: Scrape Suricata eve.json logs directly
+  # Uncomment if Suricata logs are stored outside Docker
+  # - job_name: pi-netsec-suricata
+  #   static_configs:
+  #     - targets:
+  #         - localhost
+  #       labels:
+  #         job: pi-netsec-suricata
+  #         host: pi-netsec
+  #         stack: netsec-ai
+  #         service: suricata
+  #         __path__: /var/log/suricata/eve.json
+  #   
+  #   pipeline_stages:
+  #     - json:
+  #         expressions:
+  #           timestamp: timestamp
+  #           event_type: event_type
+  #           src_ip: src_ip
+  #           dest_ip: dest_ip
+  #           alert_signature: alert.signature
+  #     - labels:
+  #         event_type:
+  #     - timestamp:
+  #         source: timestamp
+  #         format: RFC3339
+
+  # Optional: Scrape system logs
+  # - job_name: pi-netsec-system
+  #   static_configs:
+  #     - targets:
+  #         - localhost
+  #       labels:
+  #         job: pi-netsec-system
+  #         host: pi-netsec
+  #         stack: netsec-ai
+  #         __path__: /var/log/*.log
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# - This Promtail instance must have read access to /var/lib/docker/containers
+# - All logs are labeled with host=pi-netsec, stack=netsec-ai
+# - In Grafana, filter logs with: {host="pi-netsec"}
+# - Security event logs: {host="pi-netsec", container_name="suricata"}
+# - AI pipeline logs: {host="pi-netsec", container_name=~".*ai.*"}
+#
+# Future considerations:
+# - If Loki is also running locally on Pi 5 #2 (in the netsec repo), you may
+#   choose to disable it and centralize all logs on CoreSrv instead
+# - This reduces resource usage on the Pi and provides a single pane of glass
+#
+# Troubleshooting:
+# - Check Promtail logs: docker logs promtail
+# - Verify Loki connectivity: curl http://CORESRV_LAN_IP:3100/ready
+# - Test log ingestion: docker logs <some-container> (should appear in Grafana)
+# - For security events, ensure Suricata is logging in JSON format (eve.json)

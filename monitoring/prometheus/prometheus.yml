@@ -3,7 +3,7 @@
 
 global:
   scrape_interval: 15s
-  evaluation_interval: 15s
+  evaluation_interval: 30s
   external_labels:
     monitor: 'orion-sentinel-core'
     environment: 'production'
@@ -30,112 +30,114 @@ scrape_configs:
           service: 'prometheus'
 
   # ===========================================================================
-  # CoreSrv Targets
+  # CoreSrv Targets (this machine)
   # ===========================================================================
   
-  # CoreSrv Node Exporter (host metrics)
-  # TODO: Add node_exporter to compose.yml
+  # TODO: Add node_exporter to compose.yml for host metrics
+  # CoreSrv Node Exporter (host metrics: CPU, RAM, disk, network)
   - job_name: 'coresrv-node'
     static_configs:
       - targets: ['node-exporter:9100']
         labels:
           node: 'coresrv'
           instance: 'coresrv'
+          role: 'services-hub'
 
-  # CoreSrv cAdvisor (container metrics)
-  # TODO: Add cadvisor to compose.yml
+  # TODO: Add cAdvisor to compose.yml for container metrics
+  # CoreSrv cAdvisor (Docker container metrics)
   - job_name: 'coresrv-cadvisor'
     static_configs:
       - targets: ['cadvisor:8080']
         labels:
           node: 'coresrv'
           instance: 'coresrv'
+          role: 'services-hub'
 
-  # Traefik metrics
-  - job_name: 'traefik'
-    static_configs:
-      - targets: ['traefik:8082']
-        labels:
-          node: 'coresrv'
-          service: 'traefik'
+  # Traefik metrics (if enabled in traefik.yml)
+  # - job_name: 'traefik'
+  #   static_configs:
+  #     - targets: ['traefik:8082']
+  #       labels:
+  #         node: 'coresrv'
+  #         service: 'traefik'
 
   # ===========================================================================
-  # Pi DNS Node (Pi 5 #1) - Adjust IPs as needed
+  # Pi DNS Node (Pi 5 #1) - ADJUST IPs TO MATCH YOUR NETWORK
   # ===========================================================================
   
-  # Pi DNS - Node Exporter
   # TODO: Set up node_exporter on Pi DNS
+  # TODO: Adjust IP address to match your Pi DNS node
+  # Pi DNS - Node Exporter
   - job_name: 'pi-dns-node'
     static_configs:
-      - targets: ['192.168.1.10:9100']  # ← ADJUST IP
+      - targets: ['192.168.8.240:9100']  # ← ADJUST THIS IP
         labels:
           node: 'pi-dns'
           instance: 'pi-dns'
+          role: 'dns-server'
 
-  # Pi DNS - Pi-hole Exporter
   # TODO: Set up pihole_exporter on Pi DNS
+  # TODO: Adjust IP address to match your Pi DNS node
+  # Pi DNS - Pi-hole Exporter
   # See: https://github.com/eko/pihole-exporter
   - job_name: 'pihole'
     static_configs:
-      - targets: ['192.168.1.10:9617']  # ← ADJUST IP
+      - targets: ['192.168.8.240:9617']  # ← ADJUST THIS IP
         labels:
           node: 'pi-dns'
           service: 'pihole'
+          role: 'dns-server'
 
-  # Pi DNS - Unbound Exporter
   # TODO: Set up unbound_exporter on Pi DNS
+  # TODO: Adjust IP address to match your Pi DNS node
+  # Pi DNS - Unbound Exporter
   # See: https://github.com/letsencrypt/unbound_exporter
   - job_name: 'unbound'
     static_configs:
-      - targets: ['192.168.1.10:9167']  # ← ADJUST IP
+      - targets: ['192.168.8.240:9167']  # ← ADJUST THIS IP
         labels:
           node: 'pi-dns'
           service: 'unbound'
+          role: 'dns-server'
 
   # ===========================================================================
-  # Pi NetSec Node (Pi 5 #2) - Adjust IPs as needed
+  # Pi NetSec Node (Pi 5 #2) - ADJUST IPs TO MATCH YOUR NETWORK
   # ===========================================================================
   
-  # Pi NetSec - Node Exporter
   # TODO: Set up node_exporter on Pi NetSec
+  # TODO: Adjust IP address to match your Pi NetSec node
+  # Pi NetSec - Node Exporter
   - job_name: 'pi-netsec-node'
     static_configs:
-      - targets: ['192.168.1.20:9100']  # ← ADJUST IP
+      - targets: ['192.168.8.241:9100']  # ← ADJUST THIS IP
         labels:
           node: 'pi-netsec'
           instance: 'pi-netsec'
+          role: 'security-monitoring'
 
-  # Pi NetSec - Orion Sentinel Metrics (custom)
   # TODO: Configure Orion Sentinel to export Prometheus metrics
+  # TODO: Adjust IP address and port to match your Orion Sentinel deployment
+  # Pi NetSec - Orion Sentinel Metrics (custom)
   # - job_name: 'orion-sentinel'
   #   static_configs:
-  #     - targets: ['192.168.1.20:XXXX']  # ← ADJUST IP and PORT
+  #     - targets: ['192.168.8.241:9090']  # ← ADJUST THIS IP and PORT
   #       labels:
   #         node: 'pi-netsec'
   #         service: 'orion-sentinel'
+  #         role: 'security-monitoring'
 
   # ===========================================================================
-  # Additional Exporters (optional)
+  # Additional CoreSrv Service Exporters (optional)
   # ===========================================================================
   
-  # Blackbox exporter (for HTTP/ICMP probes)
-  # Useful for monitoring external endpoints
-  # - job_name: 'blackbox'
-  #   metrics_path: /probe
-  #   params:
-  #     module: [http_2xx]
+  # qBittorrent Exporter (optional)
+  # See: https://github.com/caseyscarborough/qbittorrent-exporter
+  # - job_name: 'qbittorrent'
   #   static_configs:
-  #     - targets:
-  #       - https://jellyfin.local
-  #       - https://cloud.local
-  #       - https://search.local
-  #   relabel_configs:
-  #     - source_labels: [__address__]
-  #       target_label: __param_target
-  #     - source_labels: [__param_target]
-  #       target_label: instance
-  #     - target_label: __address__
-  #       replacement: blackbox-exporter:9115
+  #     - targets: ['qbittorrent-exporter:9022']
+  #       labels:
+  #         node: 'coresrv'
+  #         service: 'qbittorrent'
 
-# Storage retention (can be overridden by command line flags)
-# Default: 15 days (configured via compose.yml environment)
+# Storage retention (overridden by command line flags in compose.yml)
+# Default: 15 days (configured via PROMETHEUS_RETENTION_TIME in env)

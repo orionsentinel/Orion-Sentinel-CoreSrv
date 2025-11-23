@@ -16,16 +16,7 @@ services:
     profiles: ["core"]
     restart: unless-stopped
     command:
-      - --api.dashboard=true
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      # ACME/DNS-01 can be added later:
-      # - --certificatesresolvers.le.acme.email=${TRAEFIK_ACME_EMAIL}
-      # - --certificatesresolvers.le.acme.storage=/acme/acme.json
-      # - --certificatesresolvers.le.acme.dnschallenge=true
-      # - --certificatesresolvers.le.acme.dnschallenge.provider=${TRAEFIK_ACME_DNS_PROVIDER}
+      - --configFile=/etc/traefik/traefik.yml
     ports:
       - "80:80"
       - "443:443"
@@ -33,19 +24,20 @@ services:
       - TZ=${TZ:-Europe/Amsterdam}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ${CONFIG_ROOT}/traefik:/etc/traefik
+      - ${CONFIG_ROOT}/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ${CONFIG_ROOT}/traefik/dynamic:/etc/traefik/dynamic:ro
       - ${CONFIG_ROOT}/traefik/acme:/acme
     networks:
       - orion_proxy
       - orion_internal
     labels:
-      # Optional: expose Traefik dashboard via SSO later
+      # Expose Traefik dashboard (protect with Authelia once working)
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.rule=Host(`traefik.local`)"
       - "traefik.http.routers.traefik.entrypoints=websecure"
       - "traefik.http.routers.traefik.tls=true"
-      # Add Authelia middleware once Authelia is running
-      # - "traefik.http.routers.traefik.middlewares=authelia@docker"
+      # Uncomment to protect with Authelia SSO
+      # - "traefik.http.routers.traefik.middlewares=authelia-forwardauth@file"
       - "traefik.http.services.traefik.loadbalancer.server.port=8080"
 
   authelia:
@@ -55,7 +47,7 @@ services:
     restart: unless-stopped
     environment:
       - TZ=${TZ:-Europe/Amsterdam}
-      # These should come from env/.env.core (real values)
+      # Secrets from .env.core
       - AUTHELIA_JWT_SECRET=${AUTHELIA_JWT_SECRET:-changeme}
       - AUTHELIA_SESSION_SECRET=${AUTHELIA_SESSION_SECRET:-changeme}
       - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY:-changeme}
@@ -70,10 +62,6 @@ services:
       - "traefik.http.routers.authelia.entrypoints=websecure"
       - "traefik.http.routers.authelia.tls=true"
       - "traefik.http.services.authelia.loadbalancer.server.port=9091"
-      # Authelia ForwardAuth middleware
-      - "traefik.http.middlewares.authelia.forwardAuth.address=http://authelia:9091/api/verify?rd=https%3A%2F%2Fauth.local%2F"
-      - "traefik.http.middlewares.authelia.forwardAuth.trustForwardHeader=true"
-      - "traefik.http.middlewares.authelia.forwardAuth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Name,Remote-Email"
 
   ############################################
   # MEDIA-CORE: media apps + qBit + VPN
