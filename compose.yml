@@ -41,7 +41,7 @@ services:
       - "traefik.http.services.traefik.loadbalancer.server.port=8080"
 
   authelia:
-    image: authelia/authelia:latest
+    image: authelia/authelia:4.38.6
     container_name: authelia
     profiles: ["core"]
     restart: unless-stopped
@@ -56,12 +56,24 @@ services:
     networks:
       - orion_proxy
       - orion_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9091/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.authelia.rule=Host(`auth.local`)"
       - "traefik.http.routers.authelia.entrypoints=websecure"
       - "traefik.http.routers.authelia.tls=true"
+      # Apply rate limiting to auth endpoint (DDoS protection)
+      - "traefik.http.routers.authelia.middlewares=rate-limit-auth@file"
       - "traefik.http.services.authelia.loadbalancer.server.port=9091"
+      # Autoheal label
+      - "autoheal=true"
 
   ############################################
   # MEDIA-CORE: media apps + qBit + VPN
@@ -74,6 +86,12 @@ services:
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
+    cap_drop:
+      - ALL
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    security_opt:
+      - no-new-privileges:true
     environment:
       - TZ=${TZ}
       # ProtonVPN / Gluetun-specific envs, placeholders in env/.env.media
@@ -89,6 +107,7 @@ services:
       - UPDATER_PERIOD=24h
       - HTTPPROXY=off
       - SHADOWSOCKS=off
+      - HEALTH_VPN_DURATION_INITIAL=30s
     volumes:
       - /etc/localtime:/etc/localtime:ro
     networks:
@@ -97,14 +116,22 @@ services:
     # Expose qBittorrent WebUI via this container
     ports:
       - "8080:8080"  # qBittorrent WebUI via VPN
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9999/v1/openvpn/status || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     labels:
       # Route qBittorrent UI through Traefik via VPN container
       - "traefik.enable=true"
       - "traefik.http.routers.qbittorrent.rule=Host(`qbit.local`)"
       - "traefik.http.routers.qbittorrent.entrypoints=websecure"
       - "traefik.http.routers.qbittorrent.tls=true"
-      - "traefik.http.routers.qbittorrent.middlewares=authelia@docker"
+      - "traefik.http.routers.qbittorrent.middlewares=authelia-forwardauth@file"
       - "traefik.http.services.qbittorrent.loadbalancer.server.port=8080"
+      # Autoheal label
+      - "autoheal=true"
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:4.6.7
@@ -113,7 +140,8 @@ services:
     restart: unless-stopped
     network_mode: "service:vpn"  # share network namespace with vpn
     depends_on:
-      - vpn
+      vpn:
+        condition: service_healthy
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -122,6 +150,8 @@ services:
     volumes:
       - ${CONFIG_ROOT}/qbittorrent:/config
       - ${DOWNLOAD_ROOT}:/downloads
+    security_opt:
+      - no-new-privileges:true
 
   jellyfin:
     image: lscr.io/linuxserver/jellyfin:10.9.11
@@ -144,7 +174,7 @@ services:
       - "traefik.http.routers.jellyfin.entrypoints=websecure"
       - "traefik.http.routers.jellyfin.tls=true"
       # Optionally protect with Authelia, or split admin vs user routes later
-      # - "traefik.http.routers.jellyfin.middlewares=authelia@docker"
+      # - "traefik.http.routers.jellyfin.middlewares=authelia-forwardauth@file"
       - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
 
   sonarr:
@@ -168,7 +198,7 @@ services:
       - "traefik.http.routers.sonarr.rule=Host(`sonarr.local`)"
       - "traefik.http.routers.sonarr.entrypoints=websecure"
       - "traefik.http.routers.sonarr.tls=true"
-      - "traefik.http.routers.sonarr.middlewares=authelia@docker"
+      - "traefik.http.routers.sonarr.middlewares=authelia-forwardauth@file"
       - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
 
   radarr:
@@ -192,7 +222,7 @@ services:
       - "traefik.http.routers.radarr.rule=Host(`radarr.local`)"
       - "traefik.http.routers.radarr.entrypoints=websecure"
       - "traefik.http.routers.radarr.tls=true"
-      - "traefik.http.routers.radarr.middlewares=authelia@docker"
+      - "traefik.http.routers.radarr.middlewares=authelia-forwardauth@file"
       - "traefik.http.services.radarr.loadbalancer.server.port=7878"
 
   bazarr:
@@ -215,7 +245,7 @@ services:
       - "traefik.http.routers.bazarr.rule=Host(`bazarr.local`)"
       - "traefik.http.routers.bazarr.entrypoints=websecure"
       - "traefik.http.routers.bazarr.tls=true"
-      - "traefik.http.routers.bazarr.middlewares=authelia@docker"
+      - "traefik.http.routers.bazarr.middlewares=authelia-forwardauth@file"
       - "traefik.http.services.bazarr.loadbalancer.server.port=6767"
 
   prowlarr:
@@ -237,7 +267,7 @@ services:
       - "traefik.http.routers.prowlarr.rule=Host(`${PROWLARR_HOST:-prowlarr.local}`)"
       - "traefik.http.routers.prowlarr.entrypoints=websecure"
       - "traefik.http.routers.prowlarr.tls=true"
-      - "traefik.http.routers.prowlarr.middlewares=authelia@docker"
+      - "traefik.http.routers.prowlarr.middlewares=authelia-forwardauth@file"
       - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
 
   jellyseerr:
@@ -257,7 +287,7 @@ services:
       - "traefik.http.routers.jellyseerr.rule=Host(`${JELLYSEERR_HOST:-requests.local}`)"
       - "traefik.http.routers.jellyseerr.entrypoints=websecure"
       - "traefik.http.routers.jellyseerr.tls=true"
-      - "traefik.http.routers.jellyseerr.middlewares=authelia@docker"
+      - "traefik.http.routers.jellyseerr.middlewares=authelia-forwardauth@file"
       - "traefik.http.services.jellyseerr.loadbalancer.server.port=5055"
 
   ##########################################
@@ -290,7 +320,7 @@ services:
       - "traefik.http.routers.recommendarr.rule=Host(`${RECOMMENDARR_HOST:-recommend.local}`)"
       - "traefik.http.routers.recommendarr.entrypoints=websecure"
       - "traefik.http.routers.recommendarr.tls=true"
-      - "traefik.http.routers.recommendarr.middlewares=authelia@docker"
+      - "traefik.http.routers.recommendarr.middlewares=authelia-forwardauth@file"
       - "traefik.http.services.recommendarr.loadbalancer.server.port=8000"
 
   ##########################################
@@ -315,7 +345,7 @@ services:
       - "traefik.http.routers.homepage.rule=Host(`home.local`)"
       - "traefik.http.routers.homepage.entrypoints=websecure"
       - "traefik.http.routers.homepage.tls=true"
-      - "traefik.http.routers.homepage.middlewares=authelia@docker"
+      - "traefik.http.routers.homepage.middlewares=authelia-forwardauth@file"
       - "traefik.http.services.homepage.loadbalancer.server.port=3000"
 
   watchtower:
@@ -340,6 +370,298 @@ services:
       - AUTOHEAL_CONTAINER_LABEL=autoheal
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  ##########################################
+  # MONITORING: Prometheus + Grafana + Loki + Promtail + Uptime Kuma + Exporters
+  ##########################################
+
+  # Node Exporter - Host metrics (CPU, RAM, disk, network)
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: node-exporter
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro,rslave
+    networks:
+      - orion_monitoring
+    # Security: read-only root filesystem, drop all capabilities
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  # cAdvisor - Container metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: cadvisor
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - orion_monitoring
+    command:
+      - '--housekeeping_interval=30s'
+      - '--docker_only=true'
+      - '--disable_metrics=percpu,sched,tcp,udp,disk,diskIO,accelerator,hugetlb,referenced_memory,cpu_topology,resctrl'
+
+  # Prometheus - Metrics collection and storage
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: prometheus
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-15d}'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ${MONITORING_ROOT}/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${MONITORING_ROOT}/prometheus/data:/prometheus
+    networks:
+      - orion_internal
+      - orion_monitoring
+      - orion_proxy
+    user: "${PUID}:${PGID}"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.local`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.middlewares=authelia-forwardauth@file"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  # Loki - Log aggregation
+  loki:
+    image: grafana/loki:2.9.5
+    container_name: loki
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - ${MONITORING_ROOT}/loki:/loki
+      - ${MONITORING_ROOT}/loki/config.yml:/etc/loki/config.yml:ro
+    networks:
+      - orion_internal
+      - orion_monitoring
+    # Optional: Uncomment to allow Pi agents to send logs directly via LAN
+    # ports:
+    #   - "3100:3100"
+    user: "${PUID}:${PGID}"
+
+  # Promtail - Log collection agent
+  promtail:
+    image: grafana/promtail:2.9.5
+    container_name: promtail
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${MONITORING_ROOT}/promtail/config.yml:/etc/promtail/config.yml:ro
+    networks:
+      - orion_internal
+      - orion_monitoring
+
+  # Grafana - Visualization and dashboards
+  grafana:
+    image: grafana/grafana:10.3.1
+    container_name: grafana
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
+      - GF_SERVER_ROOT_URL=https://grafana.local
+      - GF_INSTALL_PLUGINS=${GRAFANA_INSTALL_PLUGINS:-}
+    volumes:
+      - ${MONITORING_ROOT}/grafana/data:/var/lib/grafana
+      - ${MONITORING_ROOT}/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - orion_internal
+      - orion_monitoring
+      - orion_proxy
+    user: "${PUID}:${PGID}"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.local`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.routers.grafana.middlewares=authelia-forwardauth@file"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  # Uptime Kuma - Uptime monitoring and status page
+  uptime-kuma:
+    image: louislam/uptime-kuma:1.23.11
+    container_name: uptime-kuma
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ${MONITORING_ROOT}/uptime-kuma:/app/data
+    networks:
+      - orion_internal
+      - orion_proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.uptime-kuma.rule=Host(`status.local`)"
+      - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
+      - "traefik.http.routers.uptime-kuma.tls=true"
+      - "traefik.http.routers.uptime-kuma.middlewares=authelia-forwardauth@file"
+      - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
+
+  ##########################################
+  # CLOUD: Nextcloud + PostgreSQL
+  ##########################################
+
+  nextcloud-db:
+    image: postgres:16-alpine
+    container_name: nextcloud-db
+    profiles: ["cloud"]
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${NEXTCLOUD_DB_NAME:-nextcloud}
+      - POSTGRES_USER=${NEXTCLOUD_DB_USER:-nextcloud}
+      - POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASSWORD:-changeme}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - ${CLOUD_ROOT}/db:/var/lib/postgresql/data
+    networks:
+      - orion_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${NEXTCLOUD_DB_USER:-nextcloud}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nextcloud:
+    image: nextcloud:28-apache
+    container_name: nextcloud
+    profiles: ["cloud"]
+    restart: unless-stopped
+    depends_on:
+      nextcloud-db:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ}
+      - POSTGRES_HOST=nextcloud-db
+      - POSTGRES_DB=${NEXTCLOUD_DB_NAME:-nextcloud}
+      - POSTGRES_USER=${NEXTCLOUD_DB_USER:-nextcloud}
+      - POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASSWORD:-changeme}
+      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER:-admin}
+      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD:-changeme}
+      - NEXTCLOUD_TRUSTED_DOMAINS=${NEXTCLOUD_TRUSTED_DOMAINS:-cloud.local}
+      - TRUSTED_PROXIES=orion_proxy
+      - OVERWRITEPROTOCOL=https
+      - OVERWRITEHOST=${NEXTCLOUD_DOMAIN:-cloud.local}
+    volumes:
+      - ${CLOUD_ROOT}/app:/var/www/html
+      - ${CLOUD_ROOT}/data:/var/www/html/data
+    networks:
+      - orion_internal
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nextcloud.rule=Host(`cloud.local`)"
+      - "traefik.http.routers.nextcloud.entrypoints=websecure"
+      - "traefik.http.routers.nextcloud.tls=true"
+      - "traefik.http.routers.nextcloud.middlewares=authelia-forwardauth@file,nextcloud-redirect@file"
+      - "traefik.http.services.nextcloud.loadbalancer.server.port=80"
+      # Nextcloud-specific middleware for WebDAV/.well-known redirects
+      - "traefik.http.middlewares.nextcloud-redirect.redirectregex.regex=^https://([^/]+)/.well-known/(card|cal)dav"
+      - "traefik.http.middlewares.nextcloud-redirect.redirectregex.replacement=https://$$1/remote.php/dav/"
+
+  ##########################################
+  # SEARCH: SearXNG
+  ##########################################
+
+  searxng:
+    image: searxng/searxng:2024.2.23-cd84baa7e
+    container_name: searxng
+    profiles: ["search"]
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - SEARXNG_BASE_URL=https://${SEARXNG_HOST:-search.local}
+    volumes:
+      - ${CONFIG_ROOT}/searxng:/etc/searxng:rw
+    networks:
+      - orion_internal
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.searxng.rule=Host(`${SEARXNG_HOST:-search.local}`)"
+      - "traefik.http.routers.searxng.entrypoints=websecure"
+      - "traefik.http.routers.searxng.tls=true"
+      # Optionally protect with Authelia (comment out for LAN-only open access)
+      - "traefik.http.routers.searxng.middlewares=authelia-forwardauth@file"
+      - "traefik.http.services.searxng.loadbalancer.server.port=8080"
+
+  ##########################################
+  # HOME AUTOMATION: Home Assistant
+  ##########################################
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2024.2
+    container_name: homeassistant
+    profiles: ["home-automation"]
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_ROOT}/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+    # Option 1: Host network (simplest for device discovery)
+    # network_mode: host
+    # Option 2: Bridge network with Traefik (recommended)
+    networks:
+      - orion_internal
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homeassistant.rule=Host(`ha.local`)"
+      - "traefik.http.routers.homeassistant.entrypoints=websecure"
+      - "traefik.http.routers.homeassistant.tls=true"
+      # Optionally protect with Authelia
+      # - "traefik.http.routers.homeassistant.middlewares=authelia-forwardauth@file"
+      - "traefik.http.services.homeassistant.loadbalancer.server.port=8123"
 
 ############################
 # NETWORKS

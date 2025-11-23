@@ -37,19 +37,28 @@ api:
 entryPoints:
   web:
     address: ":80"
-    # Uncomment to redirect all HTTP to HTTPS
-    # http:
-    #   redirections:
-    #     entryPoint:
-    #       to: websecure
-    #       scheme: https
+    # Redirect all HTTP to HTTPS (secure by default)
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
   
   websecure:
     address: ":443"
     http:
-      tls: {}
-      # TLS configuration
-      # Certificates will be managed by ACME or manual cert files
+      tls:
+        # Minimum TLS version for security
+        options: default
+      # Security headers and middlewares applied globally
+      middlewares:
+        - security-headers@file
+        - compression@file
+  
+  # Metrics endpoint for Prometheus (internal only)
+  metrics:
+    address: ":8082"
 
 # ============================================================================
 # Providers
@@ -101,18 +110,24 @@ providers:
 #       # caServer: "https://acme-v02.api.letsencrypt.org/directory"
 
 # ============================================================================
-# Metrics (Optional - for Prometheus scraping)
+# Metrics (Prometheus scraping)
 # ============================================================================
-# Uncomment to enable Prometheus metrics endpoint
-# metrics:
-#   prometheus:
-#     addEntryPointsLabels: true
-#     addRoutersLabels: true
-#     addServicesLabels: true
-#     entryPoint: metrics
-#     # Expose metrics at :8082/metrics
-# 
-# # Add metrics entrypoint
-# entryPoints:
-#   metrics:
-#     address: ":8082"
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+    buckets:
+      - 0.1
+      - 0.3
+      - 1.2
+      - 5.0
+    entryPoint: metrics
+    # Expose metrics at :8082/metrics for Prometheus
+
+# ============================================================================
+# Additional Entry Points
+# ============================================================================
+# Note: This extends the entryPoints section defined earlier
+# Metrics endpoint (internal only - not exposed to internet)
+# Access via: http://traefik:8082/metrics from Prometheus
