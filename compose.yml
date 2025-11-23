@@ -1,0 +1,167 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.5
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - proxy_net
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+
+  authelia:
+    image: authelia/authelia
+    environment:
+      - CONFIG_ROOT=/config
+      - PUID=${PUID}
+      - PGID=${PGID}
+    networks:
+      - internal_net
+
+  jellyfin:
+    image: jellyfin/jellyfin
+    networks:
+      - internal_net
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr
+    networks:
+      - internal_net
+
+  radarr:
+    image: lscr.io/linuxserver/radarr
+    networks:
+      - internal_net
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr
+    networks:
+      - internal_net
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr
+    networks:
+      - internal_net
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent
+    environment:
+      - DOWNLOAD_ROOT=/downloads
+    networks:
+      - vpn_net
+
+  jellyseerr:
+    image: jellyseerr/jellyseerr
+    networks:
+      - internal_net
+
+  recommendarr:
+    image: recommendarr/recommendarr
+    networks:
+      - internal_net
+
+  prometheus:
+    image: prom/prometheus
+    networks:
+      - internal_net
+
+  grafana:
+    image: grafana/grafana
+    networks:
+      - internal_net
+
+  loki:
+    image: grafana/loki
+    networks:
+      - internal_net
+
+  promtail:
+    image: grafana/promtail
+    networks:
+      - internal_net
+
+  uptime-kuma:
+    image: louislam/uptime-kuma
+    networks:
+      - internal_net
+
+  nextcloud:
+    image: nextcloud
+    networks:
+      - internal_net
+
+  searxng:
+    image: searxng/searxng
+    networks:
+      - internal_net
+
+  home_assistant:
+    image: homeassistant/home-assistant
+    networks:
+      - internal_net
+
+  watchtower:
+    image: containrrr/watchtower
+    networks:
+      - internal_net
+
+  autoheal:
+    image: willfarrell/autoheal
+    networks:
+      - internal_net
+
+  homepage:
+    image: nginx
+    networks:
+      - internal_net
+
+networks:
+  proxy_net:
+  internal_net:
+  vpn_net:
+
+profiles:
+  core:
+    services:
+      - traefik
+      - authelia
+  media-core:
+    services:
+      - jellyfin
+      - sonarr
+      - radarr
+      - bazarr
+      - prowlarr
+      - qbittorrent
+      - jellyseerr
+  media-ai:
+    services:
+      - recommendarr
+  monitoring:
+    services:
+      - prometheus
+      - grafana
+      - loki
+      - promtail
+      - uptime-kuma
+  cloud:
+    services:
+      - nextcloud
+  search:
+    services:
+      - searxng
+  home-automation:
+    services:
+      - home_assistant
+  maintenance:
+    services:
+      - watchtower
+      - autoheal
+      - homepage
