@@ -86,6 +86,17 @@ media/
 - Libraries: `/library/movies`, `/library/tv`
 - Metadata providers: TMDB, TVDB, OMDb
 
+**Hardware Acceleration (Intel):**
+- The Jellyfin service is configured with Intel hardware acceleration support
+- Uses `/dev/dri` device for GPU access (Intel i5 and other Intel CPUs with integrated GPU)
+- Requires `video` and `render` group membership for container access
+- To enable in Jellyfin:
+  1. Navigate to Dashboard → Playback → Transcoding
+  2. Select "Video Acceleration API (VA-API)" as the hardware acceleration method
+  3. Set VA-API Device to `/dev/dri/renderD128`
+  4. Enable "Enable hardware decoding for:" as needed (H264, HEVC, etc.)
+  5. Save changes and test with a transcoded stream
+
 ### Sonarr
 
 **Purpose:** TV show management and automation
@@ -467,7 +478,7 @@ ls -li /srv/orion-sentinel-core-sentinel-core/media/library/movies/test.txt
 - [ ] Configure Bazarr subtitle providers
 - [ ] Add private trackers to Prowlarr (if you have accounts)
 - [ ] Set up qBittorrent categories for better organization
-- [ ] Configure Jellyfin hardware transcoding (if GPU available)
+- [x] Configure Jellyfin hardware transcoding (Intel GPU support configured)
 - [ ] Set up Jellyseerr notification webhooks
 - [ ] Configure Recommendarr Trakt.tv integration
 - [ ] Add media cleanup automation (Cleanuparr/Decluttarr)

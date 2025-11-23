@@ -185,6 +185,12 @@ services:
     volumes:
       - ${CONFIG_ROOT}/jellyfin:/config
       - ${MEDIA_LIBRARY_ROOT}:/media:ro
+    # Intel hardware acceleration for transcoding (i5 and other Intel CPUs with integrated GPU)
+    devices:
+      - /dev/dri:/dev/dri  # Intel GPU device for hardware transcoding
+    group_add:
+      - video   # Video group for GPU access
+      - render  # Render group for GPU access
     networks:
       - orion_internal
       - orion_proxy
