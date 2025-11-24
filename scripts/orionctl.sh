@@ -229,14 +229,12 @@ case "$CMD" in
         
         # Check env files
         MISSING=0
-        for env_file in core; do
-            if [ ! -f "env/.env.$env_file" ]; then
-                validation_error "Missing env/.env.$env_file"
-                ((MISSING++))
-            else
-                success "Found env/.env.$env_file"
-            fi
-        done
+        if [ ! -f "env/.env.core" ]; then
+            validation_error "Missing env/.env.core"
+            ((MISSING++))
+        else
+            success "Found env/.env.core"
+        fi
         
         # Check for placeholders
         if [ -f "env/.env.core" ]; then
