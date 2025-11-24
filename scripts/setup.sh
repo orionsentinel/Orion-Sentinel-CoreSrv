@@ -58,9 +58,9 @@ prompt() {
     local response
     
     if [ -n "$default" ]; then
-        echo -ne "${BLUE}?${NC} $message [${BOLD}$default${NC}]: "
+        echo -ne "${BLUE}?${NC} $message [${BOLD}$default${NC}]: " >&2
     else
-        echo -ne "${BLUE}?${NC} $message: "
+        echo -ne "${BLUE}?${NC} $message: " >&2
     fi
     
     read -r response
