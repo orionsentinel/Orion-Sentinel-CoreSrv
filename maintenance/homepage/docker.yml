@@ -1,0 +1,26 @@
+---
+# Homepage Docker Configuration
+# Docker socket configuration for container monitoring
+# See: https://gethomepage.dev/latest/configs/docker/
+
+# ===========================================================================
+# DOCKER SOCKET CONNECTION
+# ===========================================================================
+# Connect to the local Docker socket for container status
+
+my-docker:
+  socket: /var/run/docker.sock
+
+# ===========================================================================
+# ALTERNATIVE: REMOTE DOCKER HOST (Optional)
+# ===========================================================================
+# If you want to monitor containers on other hosts, you can add them here
+# Note: Requires exposing Docker socket over TCP (security risk!)
+
+# pi-dns:
+#   host: 192.168.8.240
+#   port: 2375
+
+# pi-netsec:
+#   host: 192.168.8.241
+#   port: 2375

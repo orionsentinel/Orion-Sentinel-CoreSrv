@@ -1,0 +1,96 @@
+---
+# Homepage Settings Configuration
+# Global dashboard settings and appearance
+# See: https://gethomepage.dev/latest/configs/settings/
+
+# ===========================================================================
+# DASHBOARD APPEARANCE
+# ===========================================================================
+title: Orion CoreSrv Hub
+favicon: https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/orion.png
+
+# Theme settings
+theme: dark
+color: slate
+
+# Card blur effect (requires modern browser)
+cardBlur: md
+
+# Show version in footer
+showStats: true
+
+# ===========================================================================
+# LAYOUT CONFIGURATION
+# ===========================================================================
+layout:
+  Media:
+    style: row
+    columns: 3
+  Downloads:
+    style: row
+    columns: 2
+  Cloud & Search:
+    style: row
+    columns: 2
+  Home Automation:
+    style: row
+    columns: 1
+  Monitoring:
+    style: row
+    columns: 3
+  Infrastructure:
+    style: row
+    columns: 3
+  Pi Nodes:
+    style: row
+    columns: 2
+
+# ===========================================================================
+# HEADER STYLE
+# ===========================================================================
+headerStyle: boxed
+# Options: boxed, underlined, clean
+
+# ===========================================================================
+# GENERAL SETTINGS
+# ===========================================================================
+# Hide version number from footer
+hideVersion: false
+
+# Disable collapse on groups
+disableCollapse: false
+
+# Target for links
+target: _blank
+
+# Background settings (optional)
+# background:
+#   image: /images/background.jpg
+#   blur: sm
+#   saturate: 50
+#   brightness: 50
+#   opacity: 50
+
+# Base URL (for assets)
+# base: /homepage
+
+# ===========================================================================
+# LANGUAGE & LOCALIZATION
+# ===========================================================================
+language: en
+
+# ===========================================================================
+# PROVIDERS (for external data)
+# ===========================================================================
+providers:
+  openweathermap: openweathermap
+  weatherapi: weatherapi
+  
+# ===========================================================================
+# QUICK LAUNCH (keyboard shortcut search)
+# ===========================================================================
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: false
+  showSearchSuggestions: true
+  hideVisitURL: false

@@ -17,27 +17,29 @@ providers:
       path: /var/lib/grafana/dashboards/orion
       foldersFromFilesStructure: true
 
-# TODO: Add dashboard JSON files to monitoring/grafana/dashboards/orion/
+# Pre-installed dashboards in monitoring/grafana/dashboards/orion/:
 #
-# Recommended dashboards to import and export:
+# 1. system-overview.json - Orion CoreSrv System Overview
+#    Host metrics: CPU, RAM, disk, network, load averages
+#
+# 2. docker-containers.json - Orion CoreSrv Docker Containers
+#    Container metrics: CPU, memory, network, disk I/O per container
+#
+# Additional community dashboards can be imported:
 #
 # 1. Node Exporter Full (ID: 1860)
 #    wget https://grafana.com/api/dashboards/1860/revisions/latest/download \
-#      -O monitoring/grafana/dashboards/orion/node-exporter.json
+#      -O monitoring/grafana/dashboards/orion/node-exporter-full.json
 #
-# 2. Docker Container & Host Metrics (ID: 179)
-#    wget https://grafana.com/api/dashboards/179/revisions/latest/download \
-#      -O monitoring/grafana/dashboards/orion/docker-containers.json
-#
-# 3. Traefik 2.x (ID: 12250)
+# 2. Traefik 2.x (ID: 12250)
 #    wget https://grafana.com/api/dashboards/12250/revisions/latest/download \
 #      -O monitoring/grafana/dashboards/orion/traefik.json
 #
-# 4. Loki Dashboard (ID: 13639)
+# 3. Loki Dashboard (ID: 13639)
 #    wget https://grafana.com/api/dashboards/13639/revisions/latest/download \
 #      -O monitoring/grafana/dashboards/orion/loki-dashboard.json
 #
-# 5. Pi-hole Exporter (ID: 10176)
+# 4. Pi-hole Exporter (ID: 10176)
 #    wget https://grafana.com/api/dashboards/10176/revisions/latest/download \
 #      -O monitoring/grafana/dashboards/orion/pihole.json
 #
