@@ -16,9 +16,11 @@ The maintenance profile provides tools for managing, monitoring, and maintaining
 ```
 maintenance/
 ├── homepage/            # Homepage dashboard config
-│   ├── services.yml     # Service definitions (to be created)
-│   ├── widgets.yml      # Dashboard widgets (to be created)
-│   └── bookmarks.yml    # Quick links (to be created)
+│   ├── services.yml     # Service definitions with widgets
+│   ├── widgets.yml      # Dashboard widgets (search, resources, etc.)
+│   ├── bookmarks.yml    # Quick links to useful resources
+│   ├── settings.yml     # Dashboard appearance settings
+│   └── docker.yml       # Docker socket configuration
 └── README.md            # This file
 ```
 
@@ -494,8 +496,8 @@ docker compose logs decluttarr | grep -i deleted
 
 ## TODO
 
-- [ ] Create Homepage configuration files (services.yml, widgets.yml, bookmarks.yml)
-- [ ] Configure Homepage Docker integration
+- [x] Create Homepage configuration files (services.yml, widgets.yml, bookmarks.yml)
+- [x] Configure Homepage Docker integration
 - [ ] Add health checks to all services in compose.yml
 - [ ] Enable Autoheal (low risk)
 - [ ] Test Unpackerr with sample downloads
@@ -515,5 +517,5 @@ docker compose logs decluttarr | grep -i deleted
 
 ---
 
-**Last Updated:** 2025-11-23  
+**Last Updated:** 2025-11-28  
 **Maintained By:** Orion Home Lab Team

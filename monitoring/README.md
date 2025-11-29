@@ -187,7 +187,27 @@ docker logs loki
 
 ### 5. Configure Dashboards (Grafana)
 
-#### Import Pre-built Dashboards
+#### Pre-installed Custom Dashboards
+
+The following dashboards are automatically provisioned and available immediately:
+
+1. **Orion CoreSrv - System Overview** (`orion-system-overview`)
+   - Host system metrics (CPU, Memory, Disk, Network)
+   - Gauges for quick health overview
+   - Time-series graphs for detailed analysis
+   - System uptime and load averages
+
+2. **Orion CoreSrv - Docker Containers** (`orion-docker-containers`)
+   - Per-container CPU and memory usage
+   - Network and disk I/O per container
+   - Top consumers pie charts
+   - Real-time container resource monitoring
+
+These dashboards are located in `monitoring/grafana/dashboards/orion/` and are automatically loaded when Grafana starts.
+
+#### Additional Community Dashboards
+
+You can also import these popular community dashboards:
 
 1. **Node Exporter Full** (ID: 1860)
    - Comprehensive host metrics
