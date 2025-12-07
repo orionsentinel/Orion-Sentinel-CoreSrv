@@ -44,6 +44,46 @@ scrape_configs:
       - output:
           source: output
 
+  # Home Automation services - separate job for better filtering
+  # This helps identify home automation stack logs in Grafana
+  - job_name: home-automation
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: home-automation
+          stack: home
+          __path__: /var/lib/docker/containers/*/*-json.log
+    
+    # Filter to only home automation containers
+    # Match: homeassistant, mosquitto, zigbee2mqtt, mealie, dsmr, dsmrdb
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(homeassistant|mosquitto|zigbee2mqtt|mealie|dsmr|dsmrdb).*'
+        action: keep
+    
+    pipeline_stages:
+      # Parse JSON logs
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            attrs: attrs
+      
+      # Extract container info
+      - regex:
+          expression: '^/var/lib/docker/containers/(?P<container_id>[^/]+)/.*$'
+          source: filename
+      
+      # Add service label for easier filtering
+      - labels:
+          stream:
+          container_id:
+      
+      # Output the log
+      - output:
+          source: output
+
 # Alternative scrape config using Docker labels (requires docker_sd_configs)
 # Uncomment if you want to use Docker service discovery
 # scrape_configs:

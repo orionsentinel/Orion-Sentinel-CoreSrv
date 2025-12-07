@@ -127,7 +127,7 @@ scrape_configs:
   # ===========================================================================
   # Additional CoreSrv Service Exporters (optional)
   # ===========================================================================
-  
+
   # qBittorrent Exporter (optional)
   # See: https://github.com/caseyscarborough/qbittorrent-exporter
   # - job_name: 'qbittorrent'
@@ -136,6 +136,80 @@ scrape_configs:
   #       labels:
   #         node: 'coresrv'
   #         service: 'qbittorrent'
+
+  # ===========================================================================
+  # Home Automation Services
+  # ===========================================================================
+
+  # Home Assistant - Prometheus integration
+  # Enable via HA UI: Settings → Devices & Services → Add Integration → Prometheus
+  # Then configure to expose on port 8123 at /api/prometheus
+  - job_name: 'homeassistant'
+    metrics_path: '/api/prometheus'
+    scheme: 'http'
+    static_configs:
+      - targets: ['homeassistant:8123']
+        labels:
+          node: 'coresrv'
+          service: 'homeassistant'
+          stack: 'home-automation'
+    # Use bearer token authentication if required
+    # Uncomment and set your long-lived access token from HA
+    # authorization:
+    #   credentials: 'your-long-lived-access-token-here'
+
+  # Mosquitto MQTT Broker Exporter (optional)
+  # Requires mosquitto-exporter sidecar
+  # See: https://github.com/sapcc/mosquitto-exporter
+  # - job_name: 'mosquitto'
+  #   static_configs:
+  #     - targets: ['mosquitto-exporter:9234']
+  #       labels:
+  #         node: 'coresrv'
+  #         service: 'mosquitto'
+  #         stack: 'home-automation'
+
+  # Zigbee2MQTT - Built-in Prometheus metrics
+  # Available at /metrics endpoint when enabled in configuration.yaml
+  # - job_name: 'zigbee2mqtt'
+  #   static_configs:
+  #     - targets: ['zigbee2mqtt:9000']  # Default metrics port
+  #       labels:
+  #         node: 'coresrv'
+  #         service: 'zigbee2mqtt'
+  #         stack: 'home-automation'
+
+  # DSMR Reader - Metrics via HTTP endpoint
+  # DSMR exposes stats at /dsmr-reader/status endpoint
+  # Can use blackbox exporter or custom exporter
+  # - job_name: 'dsmr'
+  #   metrics_path: '/dsmr-reader/status'
+  #   static_configs:
+  #     - targets: ['dsmr:80']
+  #       labels:
+  #         node: 'coresrv'
+  #         service: 'dsmr'
+  #         stack: 'home-automation'
+
+  # Blackbox exporter for HTTP monitoring of web UIs
+  # Uncomment to monitor availability of home automation services
+  # - job_name: 'blackbox-home-automation'
+  #   metrics_path: /probe
+  #   params:
+  #     module: [http_2xx]
+  #   static_configs:
+  #     - targets:
+  #         - http://homeassistant:8123
+  #         - http://zigbee2mqtt:8080
+  #         - http://mealie:9000
+  #         - http://dsmr:80
+  #   relabel_configs:
+  #     - source_labels: [__address__]
+  #       target_label: __param_target
+  #     - source_labels: [__param_target]
+  #       target_label: instance
+  #     - target_label: __address__
+  #       replacement: blackbox-exporter:9115
 
 # Storage retention (overridden by command line flags in compose.yml)
 # Default: 15 days (configured via PROMETHEUS_RETENTION_TIME in env)

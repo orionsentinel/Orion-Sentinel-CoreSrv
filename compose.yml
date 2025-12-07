@@ -659,11 +659,65 @@ services:
       - "traefik.http.services.searxng.loadbalancer.server.port=8080"
 
   ##########################################
-  # HOME AUTOMATION: Home Assistant
+  # HOME AUTOMATION: Full Suite
+  # - Home Assistant (smart home hub)
+  # - Mosquitto (MQTT broker)
+  # - Zigbee2MQTT (Zigbee gateway)
+  # - Mealie (recipe management)
+  # - DSMR Reader (Dutch smart meter)
   ##########################################
 
+  # Mosquitto - MQTT broker for IoT devices
+  mosquitto:
+    image: eclipse-mosquitto:2.0.18
+    container_name: mosquitto
+    profiles: ["home-automation"]
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_ROOT}/mosquitto/config:/mosquitto/config
+      - ${CONFIG_ROOT}/mosquitto/data:/mosquitto/data
+      - ${CONFIG_ROOT}/mosquitto/log:/mosquitto/log
+    networks:
+      - orion_internal
+    ports:
+      - "1883:1883"   # MQTT
+      - "9001:9001"   # MQTT over WebSocket
+    security_opt:
+      - no-new-privileges:true
+
+  # Zigbee2MQTT - Zigbee to MQTT bridge
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:1.40.2
+    container_name: zigbee2mqtt
+    profiles: ["home-automation"]
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_ROOT}/zigbee2mqtt/data:/app/data
+      - /run/udev:/run/udev:ro
+    devices:
+      - ${ZIGBEE_DEVICE:-/dev/ttyACM0}:/dev/ttyACM0
+    networks:
+      - orion_internal
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.zigbee2mqtt.rule=Host(`zigbee.local`)"
+      - "traefik.http.routers.zigbee2mqtt.entrypoints=websecure"
+      - "traefik.http.routers.zigbee2mqtt.tls=true"
+      - "traefik.http.routers.zigbee2mqtt.middlewares=secure-chain@file"
+      - "traefik.http.services.zigbee2mqtt.loadbalancer.server.port=8080"
+
+  # Home Assistant - Smart home automation platform
   homeassistant:
-    image: ghcr.io/home-assistant/home-assistant:2024.2
+    image: ghcr.io/home-assistant/home-assistant:2024.12.1
     container_name: homeassistant
     profiles: ["home-automation"]
     restart: unless-stopped
@@ -678,6 +732,8 @@ services:
     networks:
       - orion_internal
       - orion_proxy
+    depends_on:
+      - mosquitto
     security_opt:
       - no-new-privileges:true
     labels:
@@ -688,6 +744,90 @@ services:
       # Optionally protect with Authelia
       # - "traefik.http.routers.homeassistant.middlewares=authelia-forwardauth@file"
       - "traefik.http.services.homeassistant.loadbalancer.server.port=8123"
+
+  # Mealie - Recipe management and meal planning
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:v1.12.0
+    container_name: mealie
+    profiles: ["home-automation"]
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+      # Application settings
+      - BASE_URL=https://mealie.local
+      - ALLOW_SIGNUP=${MEALIE_ALLOW_SIGNUP:-true}
+      - MAX_WORKERS=1
+      - WEB_CONCURRENCY=1
+      - API_DOCS=true
+    volumes:
+      - ${CONFIG_ROOT}/mealie:/app/data
+    networks:
+      - orion_internal
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mealie.rule=Host(`mealie.local`)"
+      - "traefik.http.routers.mealie.entrypoints=websecure"
+      - "traefik.http.routers.mealie.tls=true"
+      - "traefik.http.routers.mealie.middlewares=secure-chain@file"
+      - "traefik.http.services.mealie.loadbalancer.server.port=9000"
+
+  # DSMR Reader - Dutch smart meter data logger
+  dsmrdb:
+    image: postgres:15-alpine
+    container_name: dsmrdb
+    profiles: ["home-automation"]
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DSMR_DB_NAME:-dsmrreader}
+      - POSTGRES_USER=${DSMR_DB_USER:-dsmrreader}
+      - POSTGRES_PASSWORD=${DSMR_DB_PASSWORD:-dsmrreader}
+    volumes:
+      - ${CONFIG_ROOT}/dsmr/db:/var/lib/postgresql/data
+    networks:
+      - orion_internal
+    security_opt:
+      - no-new-privileges:true
+
+  dsmr:
+    image: xirixiz/dsmr-reader-docker:latest
+    container_name: dsmr
+    profiles: ["home-automation"]
+    restart: unless-stopped
+    depends_on:
+      - dsmrdb
+    environment:
+      - TZ=${TZ}
+      - DJANGO_TIME_ZONE=${TZ}
+      - DB_HOST=dsmrdb
+      - DB_PORT=5432
+      - DB_NAME=${DSMR_DB_NAME:-dsmrreader}
+      - DB_USER=${DSMR_DB_USER:-dsmrreader}
+      - DB_PASS=${DSMR_DB_PASSWORD:-dsmrreader}
+      - DSMR_USER=${DSMR_USER:-admin}
+      - DSMR_EMAIL=${DSMR_EMAIL:-admin@local}
+      - DSMR_PASSWORD=${DSMR_PASSWORD:-admin}
+      - VIRTUAL_HOST=energy.local
+    devices:
+      - ${DSMR_SERIAL_PORT:-/dev/ttyUSB0}:${DSMR_SERIAL_PORT:-/dev/ttyUSB0}
+    volumes:
+      - ${CONFIG_ROOT}/dsmr/app:/app
+    networks:
+      - orion_internal
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dsmr.rule=Host(`energy.local`)"
+      - "traefik.http.routers.dsmr.entrypoints=websecure"
+      - "traefik.http.routers.dsmr.tls=true"
+      - "traefik.http.routers.dsmr.middlewares=secure-chain@file"
+      - "traefik.http.services.dsmr.loadbalancer.server.port=80"
 
 ############################
 # NETWORKS

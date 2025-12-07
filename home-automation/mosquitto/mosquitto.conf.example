@@ -1,0 +1,72 @@
+# Mosquitto MQTT Broker Configuration
+# Place this file at: ${CONFIG_ROOT}/mosquitto/config/mosquitto.conf
+# See: https://mosquitto.org/man/mosquitto-conf-5.html
+
+# =============================================================================
+# LISTENERS
+# =============================================================================
+
+# Standard MQTT listener
+listener 1883
+protocol mqtt
+
+# WebSocket listener (for browser-based MQTT clients)
+listener 9001
+protocol websockets
+
+# =============================================================================
+# PERSISTENCE
+# =============================================================================
+
+# Enable persistence for QoS > 0 messages
+persistence true
+persistence_location /mosquitto/data/
+
+# Autosave interval (in seconds)
+autosave_interval 1800
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+
+# Log to stdout (captured by Docker)
+log_dest stdout
+
+# Log types to include
+log_type error
+log_type warning
+log_type notice
+log_type information
+
+# Timestamp format
+log_timestamp true
+log_timestamp_format %Y-%m-%dT%H:%M:%S
+
+# =============================================================================
+# SECURITY
+# =============================================================================
+
+# Option 1: Allow anonymous access (LAN-only, simpler setup)
+# Uncomment for open access on trusted network
+allow_anonymous true
+
+# Option 2: Require authentication (recommended)
+# Uncomment and create password file to require authentication
+# allow_anonymous false
+# password_file /mosquitto/config/passwordfile
+
+# To create password file:
+# docker compose exec mosquitto mosquitto_passwd -c /mosquitto/config/passwordfile <username>
+# Then restart mosquitto
+
+# =============================================================================
+# QUICK START NOTES
+# =============================================================================
+# 
+# 1. Copy this file to: ${CONFIG_ROOT}/mosquitto/config/mosquitto.conf
+# 2. For anonymous access: Keep allow_anonymous true
+# 3. For authenticated access:
+#    - Set allow_anonymous false
+#    - Create password: docker compose exec mosquitto mosquitto_passwd -c /mosquitto/config/passwordfile admin
+#    - Update .env.home-automation with MQTT_USER and MQTT_PASSWORD
+#    - Restart: docker compose restart mosquitto

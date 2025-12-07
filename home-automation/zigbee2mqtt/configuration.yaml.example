@@ -1,0 +1,52 @@
+# Zigbee2MQTT Configuration
+# Place this file at: ${CONFIG_ROOT}/zigbee2mqtt/data/configuration.yaml
+# See: https://www.zigbee2mqtt.io/guide/configuration/
+
+# =============================================================================
+# MQTT BROKER CONNECTION
+# =============================================================================
+mqtt:
+  server: mqtt://mosquitto:1883
+  base_topic: zigbee2mqtt
+  include_device_information: true
+
+# =============================================================================
+# SERIAL PORT (ZIGBEE COORDINATOR)
+# =============================================================================
+serial:
+  port: /dev/ttyACM0
+
+# =============================================================================
+# HOME ASSISTANT INTEGRATION
+# =============================================================================
+homeassistant:
+  discovery_topic: homeassistant
+  legacy_entity_attributes: false
+  legacy_triggers: false
+
+# =============================================================================
+# FRONTEND (WEB UI)
+# =============================================================================
+frontend:
+  port: 8080
+  host: 0.0.0.0
+
+# =============================================================================
+# ADVANCED SETTINGS
+# =============================================================================
+advanced:
+  log_level: info
+  pan_id: GENERATE
+  network_key: GENERATE
+  channel: 11
+  last_seen: ISO_8601
+  elapsed: true
+  legacy_api: false
+
+# =============================================================================
+# QUICK START
+# =============================================================================
+# 1. Copy to: ${CONFIG_ROOT}/zigbee2mqtt/data/configuration.yaml
+# 2. Start: docker compose --profile home-automation up -d
+# 3. Access: https://zigbee.local
+# 4. Click "Permit join" and pair your devices
