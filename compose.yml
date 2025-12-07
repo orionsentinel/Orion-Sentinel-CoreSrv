@@ -811,7 +811,6 @@ services:
       - DSMR_USER=${DSMR_USER:-admin}
       - DSMR_EMAIL=${DSMR_EMAIL:-admin@local}
       - DSMR_PASSWORD=${DSMR_PASSWORD:-admin}
-      - VIRTUAL_HOST=energy.local
     devices:
       - ${DSMR_SERIAL_PORT:-/dev/ttyUSB0}:${DSMR_SERIAL_PORT:-/dev/ttyUSB0}
     volumes:

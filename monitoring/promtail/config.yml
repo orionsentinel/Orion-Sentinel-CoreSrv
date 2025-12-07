@@ -55,13 +55,6 @@ scrape_configs:
           stack: home
           __path__: /var/lib/docker/containers/*/*-json.log
     
-    # Filter to only home automation containers
-    # Match: homeassistant, mosquitto, zigbee2mqtt, mealie, dsmr, dsmrdb
-    relabel_configs:
-      - source_labels: ['__meta_docker_container_name']
-        regex: '/(homeassistant|mosquitto|zigbee2mqtt|mealie|dsmr|dsmrdb).*'
-        action: keep
-    
     pipeline_stages:
       # Parse JSON logs
       - json:
