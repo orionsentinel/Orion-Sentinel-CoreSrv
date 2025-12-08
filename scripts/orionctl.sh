@@ -279,6 +279,48 @@ case "$CMD" in
         ;;
     
     # =========================================================================
+    # Bootstrap Commands
+    # =========================================================================
+    
+    grafana-bootstrap)
+        info "Bootstrapping Grafana provisioning..."
+        
+        # Resolve repo root using git (with fallback to script directory)
+        if command -v git &> /dev/null && git rev-parse --show-toplevel &> /dev/null; then
+            BOOTSTRAP_REPO_ROOT="$(git rev-parse --show-toplevel)"
+        else
+            BOOTSTRAP_REPO_ROOT="$REPO_ROOT"
+        fi
+        
+        # Check for Python venv
+        VENV_PYTHON="$BOOTSTRAP_REPO_ROOT/.venv/bin/python"
+        if [ ! -f "$VENV_PYTHON" ]; then
+            error "Python venv not found or missing."
+            echo "  To create it, run:"
+            echo "    cd \"$BOOTSTRAP_REPO_ROOT\""
+            echo "    python3 -m venv .venv"
+            echo "    .venv/bin/pip install --upgrade pip"
+            exit 1
+        fi
+        
+        # Ensure Grafana container is up
+        info "Starting Grafana container..."
+        docker compose up -d grafana
+        
+        # Run bootstrap script
+        info "Running Grafana bootstrap script..."
+        "$VENV_PYTHON" "$BOOTSTRAP_REPO_ROOT/scripts/bootstrap_grafana.py"
+        BOOTSTRAP_EXIT=$?
+        
+        if [ $BOOTSTRAP_EXIT -eq 0 ]; then
+            success "Grafana bootstrap completed successfully"
+        else
+            error "Grafana bootstrap failed with exit code $BOOTSTRAP_EXIT"
+            exit $BOOTSTRAP_EXIT
+        fi
+        ;;
+    
+    # =========================================================================
     # Help
     # =========================================================================
     
@@ -292,6 +334,9 @@ USAGE:
 SETUP COMMANDS:
     setup           Run interactive setup wizard (first-time setup)
     validate        Validate configuration and prerequisites
+
+BOOTSTRAP COMMANDS:
+    grafana-bootstrap   Bootstrap Grafana provisioning (datasources + dashboards)
 
 STARTUP COMMANDS:
     up-core         Start core services only (Traefik + Authelia)
@@ -320,6 +365,9 @@ EXAMPLES:
 
     # Validate configuration
     ./orionctl.sh validate
+
+    # Bootstrap Grafana provisioning
+    ./orionctl.sh grafana-bootstrap
 
     # Start just core services for testing
     ./orionctl.sh up-core

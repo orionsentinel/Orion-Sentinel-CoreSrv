@@ -516,6 +516,7 @@ services:
     volumes:
       - ${MONITORING_ROOT}/grafana/data:/var/lib/grafana
       - ${MONITORING_ROOT}/grafana/provisioning:/etc/grafana/provisioning
+      - ${MONITORING_ROOT}/grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - orion_internal
       - orion_monitoring
