@@ -64,6 +64,36 @@ home-automation/
 **Runtime Configuration**: All service configs are created at:
 `/srv/orion-sentinel-core/config/<service>/`
 
+## Paths & env vars
+
+The home automation stack uses a single root for all persistent data:
+
+- `HOME_AUTOMATION_ROOT` (default: `/srv/orion-sentinel-core/home-automation`)
+
+Under this root, Mosquitto expects:
+
+- `${HOME_AUTOMATION_ROOT}/mosquitto/mosquitto.conf` → mounted into the container as `/mosquitto/config/mosquitto.conf`
+- `${HOME_AUTOMATION_ROOT}/mosquitto/data` → mounted as `/mosquitto/data`
+- `${HOME_AUTOMATION_ROOT}/mosquitto/log` → mounted as `/mosquitto/log`
+
+Before starting the home-automation profile, create and copy the Mosquitto configuration:
+
+```bash
+# Create directories
+sudo mkdir -p ${HOME_AUTOMATION_ROOT}/mosquitto/{data,log}
+
+# Copy example config
+sudo cp home-automation/mosquitto/mosquitto.conf.example \
+  ${HOME_AUTOMATION_ROOT}/mosquitto/mosquitto.conf
+
+# Adjust permissions (match PUID/PGID from env/.env.home-automation)
+sudo chown -R $USER:$USER ${HOME_AUTOMATION_ROOT}
+```
+
+**Note**: The data and log directories under `${HOME_AUTOMATION_ROOT}/mosquitto` will be used for MQTT persistence and logs. Make sure they are backed up if you rely on retained messages or ACLs.
+
+Other home automation services (Home Assistant, Zigbee2MQTT, Mealie, DSMR) continue to use `${CONFIG_ROOT}` for their configurations as defined in the compose file.
+
 ## Hardware Requirements
 
 ### Required for Basic Setup
@@ -107,11 +137,12 @@ Copy example configs to runtime directories:
 
 ```bash
 # Create config directories
-sudo mkdir -p /srv/orion-sentinel-core/config/{homeassistant,mosquitto/config,zigbee2mqtt/data,mealie,dsmr}
+sudo mkdir -p /srv/orion-sentinel-core/config/{homeassistant,zigbee2mqtt/data,mealie,dsmr}
+sudo mkdir -p ${HOME_AUTOMATION_ROOT}/mosquitto/{data,log}
 
 # Copy Mosquitto config
 sudo cp home-automation/mosquitto/mosquitto.conf.example \
-  /srv/orion-sentinel-core/config/mosquitto/config/mosquitto.conf
+  ${HOME_AUTOMATION_ROOT}/mosquitto/mosquitto.conf
 
 # Copy Zigbee2MQTT config (if using Zigbee)
 sudo cp home-automation/zigbee2mqtt/configuration.yaml.example \
@@ -119,6 +150,7 @@ sudo cp home-automation/zigbee2mqtt/configuration.yaml.example \
 
 # Set permissions
 sudo chown -R $USER:$USER /srv/orion-sentinel-core/config
+sudo chown -R $USER:$USER ${HOME_AUTOMATION_ROOT}
 ```
 
 ### 3. Start Services
@@ -307,7 +339,7 @@ automation:
 /srv/orion-sentinel-core/config/homeassistant/
 
 # Mosquitto (broker config, persistence)
-/srv/orion-sentinel-core/config/mosquitto/
+${HOME_AUTOMATION_ROOT}/mosquitto/
 
 # Zigbee2MQTT (device database, network config)
 /srv/orion-sentinel-core/config/zigbee2mqtt/
@@ -325,7 +357,7 @@ automation:
 # Automated backup script (add to cron)
 sudo tar -czf ~/backups/home-automation-$(date +%Y%m%d).tar.gz \
   /srv/orion-sentinel-core/config/homeassistant \
-  /srv/orion-sentinel-core/config/mosquitto \
+  ${HOME_AUTOMATION_ROOT}/mosquitto \
   /srv/orion-sentinel-core/config/zigbee2mqtt \
   /srv/orion-sentinel-core/config/mealie \
   /srv/orion-sentinel-core/config/dsmr
@@ -399,7 +431,7 @@ docker compose logs dsmr
 
 Enable authentication for production use:
 
-1. Edit `/srv/orion-sentinel-core/config/mosquitto/config/mosquitto.conf`:
+1. Edit `${HOME_AUTOMATION_ROOT}/mosquitto/mosquitto.conf`:
    ```conf
    allow_anonymous false
    password_file /mosquitto/config/passwordfile
