@@ -426,25 +426,20 @@ services:
 
   # cAdvisor - Container metrics
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
     container_name: cadvisor
     profiles: ["monitoring"]
     restart: unless-stopped
     privileged: true
-    devices:
-      - /dev/kmsg:/dev/kmsg
+    ports:
+      - "8080:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
-      - /dev/disk/:/dev/disk:ro
     networks:
       - orion_monitoring
-    command:
-      - '--housekeeping_interval=30s'
-      - '--docker_only=true'
-      - '--disable_metrics=percpu,sched,tcp,udp,disk,diskIO,accelerator,hugetlb,referenced_memory,cpu_topology,resctrl'
 
   # Prometheus - Metrics collection and storage
   prometheus:
@@ -523,7 +518,6 @@ services:
     volumes:
       - ${MONITORING_ROOT}/grafana/data:/var/lib/grafana
       - ${MONITORING_ROOT}/grafana/provisioning:/etc/grafana/provisioning
-      - ${MONITORING_ROOT}/grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - orion_internal
       - orion_monitoring
@@ -676,9 +670,9 @@ services:
     environment:
       - TZ=${TZ}
     volumes:
-      - ${CONFIG_ROOT}/mosquitto/config:/mosquitto/config
-      - ${CONFIG_ROOT}/mosquitto/data:/mosquitto/data
-      - ${CONFIG_ROOT}/mosquitto/log:/mosquitto/log
+      - ${HOME_AUTOMATION_ROOT}/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ${HOME_AUTOMATION_ROOT}/mosquitto/data:/mosquitto/data
+      - ${HOME_AUTOMATION_ROOT}/mosquitto/log:/mosquitto/log
     networks:
       - orion_internal
     ports:

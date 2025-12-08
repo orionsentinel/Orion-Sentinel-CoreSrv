@@ -104,6 +104,40 @@ The observability stack provides comprehensive monitoring, metrics collection, l
 
 ## Setup
 
+### Paths & env vars
+
+The monitoring stack stores all of its configuration and data under a single root:
+
+- `MONITORING_ROOT` (default: `/srv/orion-sentinel-core/monitoring`)
+
+The following subdirectories are used:
+
+- `${MONITORING_ROOT}/prometheus` – Prometheus config and data
+  - `${MONITORING_ROOT}/prometheus/prometheus.yml`
+  - `${MONITORING_ROOT}/prometheus/data`
+- `${MONITORING_ROOT}/loki` – Loki config and data
+  - `${MONITORING_ROOT}/loki/config.yml`
+  - `${MONITORING_ROOT}/loki/data`
+- `${MONITORING_ROOT}/grafana` – Grafana data and provisioning
+  - `${MONITORING_ROOT}/grafana/data`
+  - `${MONITORING_ROOT}/grafana/provisioning`
+- `${MONITORING_ROOT}/promtail` – Promtail configuration
+  - `${MONITORING_ROOT}/promtail/config.yml`
+
+Before running `docker compose --profile monitoring up -d`, make sure these directories exist and are owned by the user IDs used inside the containers (typically `PUID`/`PGID` from `env/.env.monitoring`):
+
+```bash
+sudo mkdir -p ${MONITORING_ROOT}/prometheus/data
+sudo mkdir -p ${MONITORING_ROOT}/loki/data
+sudo mkdir -p ${MONITORING_ROOT}/grafana/{data,provisioning}
+sudo mkdir -p ${MONITORING_ROOT}/promtail
+
+# Adjust ownership to match PUID/PGID in env/.env.monitoring
+sudo chown -R ${PUID}:${PGID} ${MONITORING_ROOT}
+```
+
+This ensures Prometheus, Loki, Grafana, and Promtail can read their configs and write data without permission issues.
+
 ### 1. Initial Configuration
 
 #### Environment Variables
