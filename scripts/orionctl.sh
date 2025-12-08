@@ -305,7 +305,12 @@ case "$CMD" in
         
         # Ensure Grafana container is up
         info "Starting Grafana container..."
-        docker compose up -d grafana
+        check_env_file "env/.env.core"
+        check_env_file "env/.env.monitoring"
+        docker compose \
+            --env-file env/.env.core \
+            --env-file env/.env.monitoring \
+            --profile monitoring up -d grafana
         
         # Run bootstrap script
         info "Running Grafana bootstrap script..."
