@@ -233,9 +233,9 @@ restore_archive() {
     
     # Extract archive
     info "Extracting to: $volume_path"
-    tar -xzf "$archive" -C "$parent_dir" 2>/dev/null || {
+    if ! tar -xzf "$archive" -C "$parent_dir" 2>&1; then
         error "Failed to extract backup archive"
-    }
+    fi
     
     # Verify restoration
     if [ -e "$volume_path" ]; then

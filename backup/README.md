@@ -79,7 +79,7 @@ The following volumes are backed up:
 sudo crontab -e
 
 # Add this line:
-0 2 * * * /home/runner/work/Orion-Sentinel-CoreSrv/Orion-Sentinel-CoreSrv/backup/backup-volumes.sh daily >> /var/log/orion-backup.log 2>&1
+0 2 * * * /path/to/Orion-Sentinel-CoreSrv/backup/backup-volumes.sh daily >> /var/log/orion-backup.log 2>&1
 ```
 
 ### Weekly Backups on Sunday at 3 AM
@@ -89,7 +89,7 @@ sudo crontab -e
 sudo crontab -e
 
 # Add this line:
-0 3 * * 0 /home/runner/work/Orion-Sentinel-CoreSrv/Orion-Sentinel-CoreSrv/backup/backup-volumes.sh weekly >> /var/log/orion-backup.log 2>&1
+0 3 * * 0 /path/to/Orion-Sentinel-CoreSrv/backup/backup-volumes.sh weekly >> /var/log/orion-backup.log 2>&1
 ```
 
 ### Monthly Backups on 1st at 4 AM
@@ -99,7 +99,7 @@ sudo crontab -e
 sudo crontab -e
 
 # Add this line:
-0 4 1 * * /home/runner/work/Orion-Sentinel-CoreSrv/Orion-Sentinel-CoreSrv/backup/backup-volumes.sh monthly >> /var/log/orion-backup.log 2>&1
+0 4 1 * * /path/to/Orion-Sentinel-CoreSrv/backup/backup-volumes.sh monthly >> /var/log/orion-backup.log 2>&1
 ```
 
 ### Combined Cron Schedule (Recommended)
