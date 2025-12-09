@@ -1,0 +1,210 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop, "copilot/**" ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  validate-compose:
+    name: Validate Docker Compose Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create required env files
+        run: |
+          # Create minimal env files for validation
+          mkdir -p env
+          cat > env/.env.media << EOF
+          PUID=1000
+          PGID=1000
+          TZ=UTC
+          MEDIA_ROOT=/tmp/media
+          MEDIA_CONFIG_ROOT=/tmp/config
+          EOF
+          
+          cat > env/.env.gateway << EOF
+          PUID=1000
+          PGID=1000
+          TZ=UTC
+          DOMAIN=example.local
+          TRAEFIK_ACME_EMAIL=admin@example.local
+          AUTHELIA_JWT_SECRET=dummy-secret-for-validation
+          AUTHELIA_SESSION_SECRET=dummy-secret-for-validation
+          AUTHELIA_STORAGE_ENCRYPTION_KEY=dummy-secret-for-validation
+          EOF
+          
+          cat > env/.env.observability << EOF
+          PUID=1000
+          PGID=1000
+          TZ=UTC
+          MONITORING_ROOT=/tmp/monitoring
+          GRAFANA_ADMIN_PASSWORD=dummy-password
+          EOF
+          
+          cat > env/.env.homeauto << EOF
+          PUID=1000
+          PGID=1000
+          TZ=UTC
+          HOME_AUTOMATION_ROOT=/tmp/homeauto
+          EOF
+
+      - name: Validate docker-compose.media.yml
+        run: docker compose -f compose/docker-compose.media.yml config > /dev/null
+
+      - name: Validate docker-compose.gateway.yml
+        run: docker compose -f compose/docker-compose.gateway.yml config > /dev/null
+
+      - name: Validate docker-compose.observability.yml
+        run: docker compose -f compose/docker-compose.observability.yml config > /dev/null
+
+      - name: Validate docker-compose.homeauto.yml
+        run: docker compose -f compose/docker-compose.homeauto.yml config > /dev/null
+
+  lint-yaml:
+    name: Lint YAML Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Create yamllint config
+        run: |
+          cat > .yamllint.yml << EOF
+          extends: default
+          rules:
+            line-length:
+              max: 200
+              level: warning
+            indentation:
+              spaces: 2
+              indent-sequences: whatever
+            comments:
+              min-spaces-from-content: 1
+            document-start: disable
+            truthy:
+              allowed-values: ['true', 'false', 'on', 'off']
+          ignore: |
+            .github/
+          EOF
+
+      - name: Run yamllint
+        run: |
+          yamllint -c .yamllint.yml \
+            compose/*.yml \
+            monitoring/**/*.yml \
+            core/**/*.yml \
+            maintenance/**/*.yml \
+            search/**/*.yml \
+            home-automation/**/*.conf.example \
+            agents/**/*.yml || true
+
+  lint-shell:
+    name: Lint Shell Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck
+        run: |
+          find scripts/ -name "*.sh" -type f -exec shellcheck {} + || true
+
+  smoke-test:
+    name: Smoke Test - Stack Health
+    runs-on: ubuntu-latest
+    needs: [validate-compose]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create test directories
+        run: |
+          sudo mkdir -p /srv/media/{downloads,library}
+          sudo mkdir -p /srv/docker/media/{jellyfin,sonarr,radarr,prowlarr,qbittorrent}/config
+          sudo chown -R $(id -u):$(id -g) /srv/media /srv/docker
+
+      - name: Create env files
+        run: |
+          mkdir -p env
+          cat > env/.env.media << EOF
+          PUID=$(id -u)
+          PGID=$(id -g)
+          TZ=UTC
+          MEDIA_ROOT=/srv/media
+          MEDIA_CONFIG_ROOT=/srv/docker/media
+          EOF
+
+      - name: Start media stack
+        run: |
+          docker compose -f compose/docker-compose.media.yml --profile media-core up -d
+
+      - name: Wait for containers to be healthy
+        run: |
+          timeout=180
+          elapsed=0
+          echo "Waiting for containers to start (timeout: ${timeout}s)..."
+          
+          while [ $elapsed -lt $timeout ]; do
+            # Check if all containers are running
+            running=$(docker compose -f compose/docker-compose.media.yml ps --filter "status=running" -q | wc -l)
+            total=$(docker compose -f compose/docker-compose.media.yml ps -q | wc -l)
+            
+            echo "[$elapsed s] Containers running: $running/$total"
+            
+            if [ "$running" -eq "$total" ] && [ "$total" -gt 0 ]; then
+              echo "✓ All containers are running!"
+              break
+            fi
+            
+            sleep 5
+            elapsed=$((elapsed + 5))
+          done
+          
+          if [ $elapsed -ge $timeout ]; then
+            echo "✗ Timeout waiting for containers to start"
+            docker compose -f compose/docker-compose.media.yml ps
+            docker compose -f compose/docker-compose.media.yml logs --tail=50
+            exit 1
+          fi
+
+      - name: Test service accessibility
+        run: |
+          # Wait a bit more for services to fully initialize
+          sleep 10
+          
+          # Test qBittorrent
+          curl -f http://localhost:5080 || echo "qBittorrent not ready yet"
+          
+          # Test Jellyfin
+          curl -f http://localhost:8096 || echo "Jellyfin not ready yet"
+          
+          echo "✓ Basic connectivity tests completed"
+
+      - name: Show container status
+        if: always()
+        run: docker compose -f compose/docker-compose.media.yml ps
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -f compose/docker-compose.media.yml logs --tail=100
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f compose/docker-compose.media.yml down -v

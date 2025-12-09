@@ -565,45 +565,83 @@ View in Grafana → Explore → Loki
 
 ## Backup & Restore
 
-### What to Backup
+**Production-ready means having backups you've actually tested!**
 
-**Critical:**
-- `.env` file and `env/*.env` files
-- `/srv/orion-sentinel-core/core/` (Traefik certs, Authelia users)
-- Service configs (Sonarr, Radarr, etc.)
-
-**Optional:**
-- Prometheus data (can rebuild)
-- Media files (large, can re-download)
-
-### Backup Script
+### Quick Backup
 
 ```bash
-make backup  # Creates timestamped archive
+# Backup all critical volumes
+sudo ./backup/backup-volumes.sh weekly
+
+# Backup specific service
+sudo ./backup/backup-volumes.sh daily jellyfin
 ```
 
-Backups saved to `/srv/orion-sentinel-core/backups/`
+### Critical Volumes
 
-### Restore
+**Media Stack:** Jellyfin metadata, Sonarr/Radarr/Prowlarr configs, qBittorrent state  
+**Gateway Stack:** Traefik certificates, Authelia user database  
+**Monitoring:** Grafana dashboards, Prometheus/Loki configs  
+**Home Automation:** Home Assistant config, Zigbee2MQTT devices, MQTT broker  
+
+### Automated Backups
+
+Set up automated daily/weekly/monthly backups:
 
 ```bash
-# Extract backup
-cd /srv/orion-sentinel-core
-tar -xzf backups/backup-YYYY-MM-DD.tar.gz
+# Edit root crontab
+sudo crontab -e
 
-# Restart services
-make down
-make up-full
+# Daily backups at 2 AM
+0 2 * * * /path/to/backup/backup-volumes.sh daily >> /var/log/orion-backup.log 2>&1
+
+# Weekly backups on Sunday at 3 AM
+0 3 * * 0 /path/to/backup/backup-volumes.sh weekly >> /var/log/orion-backup.log 2>&1
 ```
+
+### Restore a Service
+
+```bash
+# 1. Stop service
+docker compose -f compose/docker-compose.media.yml stop jellyfin
+
+# 2. Restore from backup
+sudo ./backup/restore-volume.sh weekly 2024-12-09 jellyfin
+
+# 3. Start and verify
+docker compose -f compose/docker-compose.media.yml start jellyfin
+```
+
+### Complete Guide
+
+See **[docs/BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md)** for:
+- Full backup/restore procedures
+- Disaster recovery steps
+- Offsite backup setup
+- Testing procedures
+- Security best practices
 
 ## Updates & Maintenance
 
-### Update Docker Images
+**All images use pinned version tags (not `:latest`) for stability.**
+
+### Manual Updates
 
 ```bash
-make pull      # Pull latest images
+# 1. Backup first (always!)
+sudo ./backup/backup-volumes.sh manual
+
+# 2. Update compose files with new version tags
+nano compose/docker-compose.media.yml
+
+# 3. Pull and restart
+make pull      # Pull new images
 make down      # Stop services
-make up-full   # Start with new images
+make up-all    # Start with new images
+
+# 4. Verify
+make health    # Check service health
+make logs      # Check for errors
 ```
 
 ### Update Repository
@@ -613,18 +651,43 @@ cd ~/Orion-Sentinel-CoreSrv
 git pull
 # Review CHANGELOG for breaking changes
 make down
-make up-full
+make up-all
 ```
 
-### Automatic Updates (Optional)
+### Automated Updates
 
-Enable Watchtower in `.env`:
+**Option 1: Watchtower (Recommended for home labs)**
+
+Automatically updates running containers when new images are available.
+
+See [docs/update.md](docs/update.md) for Watchtower setup instructions.
+
+**Option 2: Manual with Reminders**
+
+Set up monthly update reminders:
 
 ```bash
-WATCHTOWER_ENABLED=true
+# Add to crontab
+0 9 1 * * echo "Monthly update reminder!" | mail -s "Orion Update" your@email.com
 ```
 
-Watchtower automatically updates containers (use with caution!).
+### Security Updates
+
+For critical security patches:
+
+1. **Assess severity** - Check CVE database
+2. **Backup** - Always backup before updating
+3. **Update immediately** - For critical vulnerabilities (CVSS >= 7.0)
+4. **Verify** - Test the service after update
+
+### Complete Update Guide
+
+See **[docs/update.md](docs/update.md)** for:
+- Detailed update procedures
+- Service-specific updates
+- Rollback procedures
+- Security update workflow
+- Image version pinning strategy
 
 ## Advanced Configuration
 

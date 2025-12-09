@@ -16,7 +16,7 @@
 #
 # ============================================================================
 
-.PHONY: help setup validate up-core up-media up-traefik up-gateway up-observability up-monitoring up-home-automation up-homeauto up-extras up-full down stop restart logs status ps health pull clean backup
+.PHONY: help setup validate up-core up-media up-traefik up-gateway up-observability up-monitoring up-home-automation up-homeauto up-extras up-all up-full down stop restart logs status ps health pull clean backup
 
 # Default target
 .DEFAULT_GOAL := help
@@ -46,7 +46,8 @@ help: ## Show this help message
 	@echo "  make up-home-automation - Start home automation (Home Assistant, etc.)"
 	@echo "  make up-homeauto    - Alias for up-home-automation"
 	@echo "  make up-extras      - Start additional services (Homepage, etc.)"
-	@echo "  make up-full        - Start ALL services"
+	@echo "  make up-all         - Start ALL services"
+	@echo "  make up-full        - Alias for up-all"
 	@echo ""
 	@echo "Management Commands:"
 	@echo "  make down           - Stop all services"
@@ -151,6 +152,7 @@ up-extras: ## Start additional services (Homepage, Watchtower, etc.)
 	@echo "🔧 Starting additional services..."
 	@echo "⚠️  Extras compose not yet implemented"
 
+up-all: up-full ## Start ALL services (alias for up-full)
 up-full: ## Start ALL services (media + gateway + monitoring + home automation)
 	@echo "🚀 Starting full stack..."
 	@$(MAKE) up-media
