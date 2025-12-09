@@ -126,7 +126,7 @@ jobs:
           # Run shellcheck with warning level, allowing some common patterns
           # SC2086: Double quote to prevent globbing and word splitting (common in scripts)
           # SC1091: Not following sourced files (common for env files)
-          find scripts/ -name "*.sh" -type f -exec shellcheck -e SC2086,SC1091 {} +
+          find scripts/ backup/ -name "*.sh" -type f -exec shellcheck -e SC2086,SC1091 {} +
 
   smoke-test:
     name: Smoke Test - Stack Health
