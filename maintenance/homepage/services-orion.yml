@@ -1,0 +1,142 @@
+# Homepage Services Configuration
+# Pre-configured for Orion Sentinel CoreSrv
+# This file defines all service links on your homepage dashboard
+
+---
+# Media Services
+- Media:
+    - Jellyfin:
+        icon: jellyfin.png
+        href: ${JELLYFIN_URL:-http://localhost:8096}
+        description: Media streaming server
+        widget:
+          type: jellyfin
+          url: ${JELLYFIN_URL:-http://localhost:8096}
+          key: ${JELLYFIN_API_KEY}
+    
+    - Sonarr:
+        icon: sonarr.png
+        href: ${SONARR_URL:-http://localhost:8989}
+        description: TV show management
+        widget:
+          type: sonarr
+          url: ${SONARR_URL:-http://localhost:8989}
+          key: ${SONARR_API_KEY}
+    
+    - Radarr:
+        icon: radarr.png
+        href: ${RADARR_URL:-http://localhost:7878}
+        description: Movie management
+        widget:
+          type: radarr
+          url: ${RADARR_URL:-http://localhost:7878}
+          key: ${RADARR_API_KEY}
+    
+    - qBittorrent:
+        icon: qbittorrent.png
+        href: ${QBITTORRENT_URL:-http://localhost:5080}
+        description: Torrent client
+        widget:
+          type: qbittorrent
+          url: ${QBITTORRENT_URL:-http://localhost:5080}
+    
+    - Prowlarr:
+        icon: prowlarr.png
+        href: ${PROWLARR_URL:-http://localhost:9696}
+        description: Indexer manager
+        widget:
+          type: prowlarr
+          url: ${PROWLARR_URL:-http://localhost:9696}
+          key: ${PROWLARR_API_KEY}
+    
+    - Jellyseerr:
+        icon: jellyseerr.png
+        href: ${JELLYSEERR_URL:-http://localhost:5055}
+        description: Request management
+        widget:
+          type: jellyseerr
+          url: ${JELLYSEERR_URL:-http://localhost:5055}
+          key: ${JELLYSEERR_API_KEY}
+
+# Infrastructure Services
+- Infrastructure:
+    - Traefik:
+        icon: traefik.png
+        href: https://traefik.${DOMAIN:-local}
+        description: Reverse proxy dashboard
+        widget:
+          type: traefik
+          url: http://traefik:8080
+    
+    - Authelia:
+        icon: authelia.png
+        href: https://auth.${DOMAIN:-local}
+        description: Single Sign-On & 2FA
+    
+    - Uptime Kuma:
+        icon: uptime-kuma.png
+        href: https://uptime.${DOMAIN:-local}
+        description: Service uptime monitoring
+        widget:
+          type: uptimekuma
+          url: http://uptime-kuma:3001
+          slug: main
+
+# Monitoring Services
+- Monitoring:
+    - Grafana:
+        icon: grafana.png
+        href: https://grafana.${DOMAIN:-local}
+        description: Metrics & dashboards
+    
+    - Prometheus:
+        icon: prometheus.png
+        href: https://prometheus.${DOMAIN:-local}
+        description: Metrics collection
+        widget:
+          type: prometheus
+          url: http://prometheus:9090
+    
+    - Loki:
+        icon: loki.png
+        href: http://localhost:3100
+        description: Log aggregation
+
+# Home Automation
+- Home Automation:
+    - Home Assistant:
+        icon: home-assistant.png
+        href: https://ha.${DOMAIN:-local}
+        description: Smart home hub
+        widget:
+          type: homeassistant
+          url: http://homeassistant:8123
+          key: ${HOME_ASSISTANT_TOKEN}
+    
+    - Zigbee2MQTT:
+        icon: zigbee2mqtt.png
+        href: https://zigbee.${DOMAIN:-local}
+        description: Zigbee device gateway
+    
+    - Mealie:
+        icon: mealie.png
+        href: https://mealie.${DOMAIN:-local}
+        description: Recipe & meal planning
+
+# System
+- System:
+    # Docker widget requires docker socket access
+    # For production, consider using docker-socket-proxy for security
+    # See: https://github.com/Tecnativa/docker-socket-proxy
+    # - Docker:
+    #     icon: docker.png
+    #     href: #
+    #     description: Container management
+    #     widget:
+    #       type: docker
+    #       url: /var/run/docker.sock
+    
+    - Node Exporter:
+        icon: prometheus.png
+        href: http://localhost:9100
+        description: Host system metrics
