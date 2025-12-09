@@ -1,15 +1,34 @@
 # Orion-Sentinel-CoreSrv
 
-**Production-ready, modular home lab stack for the Orion core services server.**
+**Production-ready, modular home lab stack for Dell OptiPlex core services node.**
+
+> **Built on proven patterns from [navilg/media-stack](https://github.com/navilg/media-stack)** - Stability and simplicity for media management, extended with enterprise-grade reverse proxy, SSO, monitoring, and home automation.
 
 ## Overview
 
-Orion-Sentinel-CoreSrv is the central services hub in a 3-node home lab architecture. The stack is organized into **independent modules** that can be started and stopped separately:
+Orion-Sentinel-CoreSrv is a complete, self-hosted home lab stack designed for a Dell OptiPlex or similar hardware. Deploy a full media center, reverse proxy, monitoring solution, and home automation hub with **one command per module**.
+
+### Quick Start (3 Steps)
+
+```bash
+# 1. Bootstrap (creates directories, generates secrets)
+./scripts/bootstrap-coresrv.sh
+
+# 2. Review configuration (optional, has working defaults)
+nano .env
+
+# 3. Deploy media stack
+make up-media
+```
+
+Access Jellyfin at `http://localhost:8096` - you're done!
+
+## Features
 
 | Module | Services | Description |
 |--------|----------|-------------|
-| **Media** | Jellyfin, Sonarr, Radarr, qBittorrent, Prowlarr, Jellyseerr | Media streaming & automation |
-| **Gateway** | Traefik, Authelia, Redis | Reverse proxy & SSO |
+| **Core Media** | Jellyfin, Sonarr, Radarr, qBittorrent, Prowlarr, Jellyseerr | Media streaming & automation |
+| **Traefik** | Traefik, Authelia, Redis | Reverse proxy with HTTPS & SSO |
 | **Observability** | Prometheus, Grafana, Loki, Promtail, Uptime Kuma | Monitoring & alerting |
 | **Home Automation** | Home Assistant, Mosquitto, Zigbee2MQTT, Mealie | Smart home & IoT |
 
@@ -42,285 +61,642 @@ Orion-Sentinel-CoreSrv is the central services hub in a 3-node home lab architec
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-### Key Benefits
+### Why Orion-Sentinel-CoreSrv?
 
-- **Media is standalone**: The media module works independently without any other infrastructure
-- **Incremental adoption**: Start with media, add gateway/monitoring later
-- **Clean separation**: Each module has its own network and configuration
-- **Simpler debugging**: Smaller compose files, easier to reason about
-- **No hidden dependencies**: Missing env vars have safe defaults
+✓ **One command deployment** - `make up-media` and you're streaming  
+✓ **Based on navilg/media-stack** - Proven, stable media management patterns  
+✓ **Production-ready** - Reverse proxy, SSO, monitoring built-in  
+✓ **No manual editing** - Configure via `.env`, not compose files  
+✓ **Modular & independent** - Use only what you need  
+✓ **Security first** - VPN for torrents, Authelia 2FA, HTTPS everywhere  
 
-## Quick Start (Media Stack)
+## Architecture
 
-Get the media stack running in **3 simple steps**:
-
-### 1. Install Docker
-
-```bash
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker $USER
-sudo apt install -y docker-compose-plugin
-# Log out and back in
+```
+┌───────────────────────────────────────────────────────────────┐
+│                    MODULAR ARCHITECTURE                        │
+├───────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐     │
+│  │  MEDIA   │  │ TRAEFIK  │  │OBSERV-   │  │  HOME    │     │
+│  │          │  │          │  │ABILITY   │  │  AUTO    │     │
+│  ├──────────┤  ├──────────┤  ├──────────┤  ├──────────┤     │
+│  │Jellyfin  │  │Traefik   │  │Prometheus│  │Home Asst.│     │
+│  │Sonarr    │  │Authelia  │  │Grafana   │  │Zigbee    │     │
+│  │Radarr    │  │Redis     │  │Loki      │  │MQTT      │     │
+│  │qBit+VPN  │  │          │  │Uptime    │  │Mealie    │     │
+│  │Prowlarr  │  │          │  │Kuma      │  │          │     │
+│  │Jellyseerr│  │          │  │          │  │          │     │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘     │
+│       ↓              ↓              ↓              ↓         │
+│  Independent    Adds HTTPS    Monitoring     IoT Hub        │
+│                                                              │
+└───────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Setup Directories & Environment
+## Installation
+
+### Prerequisites
+
+- **Hardware**: Dell OptiPlex or similar (16GB+ RAM recommended)
+- **OS**: Ubuntu Server 24.04 LTS, Debian 12, or similar
+- **Network**: Static IP recommended
+- **Storage**: 100GB+ for system, 500GB+ for media
+
+### Method 1: Automated Bootstrap (Recommended)
+
+The bootstrap script handles everything automatically:
 
 ```bash
-# Clone the repo
+# Clone repository
 git clone https://github.com/orionsentinel/Orion-Sentinel-CoreSrv.git
 cd Orion-Sentinel-CoreSrv
 
-# Create media directories
-sudo mkdir -p /srv/media/{downloads,library}/{movies,tv}
-sudo mkdir -p /srv/docker/media/{jellyfin,qbittorrent,sonarr,radarr,prowlarr,jellyseerr}/config
-sudo chown -R $USER:$USER /srv/media /srv/docker/media
+# Run bootstrap (installs Docker if needed, creates dirs, generates secrets)
+./scripts/bootstrap-coresrv.sh
 
-# Copy and customize the env file
+# Start media stack
+make up-media
+```
+
+**What the bootstrap does:**
+- ✅ Checks and installs Docker + Docker Compose if needed
+- ✅ Creates directory structure under `/srv/orion-sentinel-core/`
+- ✅ Copies `.env.example` → `.env` with generated secrets
+- ✅ Copies all module env files
+- ✅ Creates Docker networks
+- ✅ Ready to deploy!
+
+### Method 2: Manual Setup
+
+If you prefer manual control:
+
+```bash
+# 1. Clone repo
+git clone https://github.com/orionsentinel/Orion-Sentinel-CoreSrv.git
+cd Orion-Sentinel-CoreSrv
+
+# 2. Copy and edit environment file
+cp .env.example .env
+nano .env  # Customize DOMAIN, paths, credentials
+
+# 3. Create directories
+sudo mkdir -p /srv/orion-sentinel-core/{core,media,monitoring,home-automation}
+sudo chown -R $USER:$USER /srv/orion-sentinel-core
+
+# 4. Copy module env files
 cp env/.env.media.modular.example env/.env.media
-# Edit env/.env.media if needed (defaults work out of the box)
-```
-
-### 3. Start the Media Stack
-
-```bash
-./scripts/orionctl up media
-```
-
-### Access Services
-
-All media services are immediately accessible on your LAN:
-
-| Service | URL | Description |
-|---------|-----|-------------|
-| Jellyfin | http://localhost:8096 | Media streaming |
-| qBittorrent | http://localhost:5080 | Torrent client |
-| Radarr | http://localhost:7878 | Movie management |
-| Sonarr | http://localhost:8989 | TV show management |
-| Prowlarr | http://localhost:9696 | Indexer manager |
-| Jellyseerr | http://localhost:5055 | Request management |
-
-## Module Management
-
-Use the `orionctl` script to manage modules:
-
-```bash
-# Start a module
-./scripts/orionctl up media
-./scripts/orionctl up gateway
-./scripts/orionctl up observability
-./scripts/orionctl up homeauto
-
-# Stop a module
-./scripts/orionctl down media
-
-# View status
-./scripts/orionctl status
-./scripts/orionctl status media
-
-# View logs
-./scripts/orionctl logs media
-./scripts/orionctl logs media jellyfin
-
-# Restart a service
-./scripts/orionctl restart media sonarr
-```
-
-### Media Profiles
-
-The media module supports multiple profiles:
-
-```bash
-# Default: Core media services (no VPN)
-./scripts/orionctl up media
-
-# With VPN: Routes qBittorrent through Gluetun VPN
-./scripts/orionctl up media media-vpn
-
-# Extras: Bazarr (subtitles), Recommendarr (AI recommendations)
-docker compose -f compose/docker-compose.media.yml --profile media-extra up -d
-```
-
-## Adding Other Modules
-
-### Gateway (Traefik + Authelia)
-
-```bash
-# Setup
 cp env/.env.gateway.example env/.env.gateway
-# Edit env/.env.gateway - MUST change Authelia secrets!
+# Edit as needed...
 
-# Start
-./scripts/orionctl up gateway
+# 5. Generate Authelia secrets
+openssl rand -hex 32  # Copy to .env for AUTHELIA_JWT_SECRET
+openssl rand -hex 32  # Copy to .env for AUTHELIA_SESSION_SECRET
+openssl rand -hex 32  # Copy to .env for AUTHELIA_STORAGE_ENCRYPTION_KEY
+
+# 6. Create networks
+make networks
+
+# 7. Deploy
+make up-media
 ```
 
-### Observability (Prometheus + Grafana)
+## Quick Start Examples
+
+### Media Stack Only (Recommended Start)
+
+Perfect for getting started - media services with direct port access:
 
 ```bash
-# Setup  
-cp env/.env.observability.example env/.env.observability
-
-# Start (requires gateway for reverse proxy)
-./scripts/orionctl up observability
+make up-media
 ```
+
+**Access your services:**
+- Jellyfin: http://localhost:8096
+- qBittorrent: http://localhost:5080  
+- Sonarr: http://localhost:8989
+- Radarr: http://localhost:7878
+- Prowlarr: http://localhost:9696
+- Jellyseerr: http://localhost:5055
+
+### Media + Reverse Proxy (Production Setup)
+
+Add Traefik for HTTPS and friendly URLs:
+
+```bash
+# Edit gateway config (set your domain)
+nano env/.env.gateway
+
+# Deploy
+make up-media
+make up-traefik
+```
+
+**Access via Traefik (configure DNS first):**
+- https://jellyfin.local
+- https://sonarr.local
+- https://radarr.local
+- etc.
+
+### Full Stack (Everything)
+
+Media + Reverse Proxy + Monitoring + Home Automation:
+
+```bash
+make up-full
+```
+
+## Configuration Guide
+
+### Essential Settings (.env)
+
+Only a few settings need to be changed from defaults:
+
+```bash
+# User/Group (run 'id' to find yours)
+PUID=1000
+PGID=1000
+
+# Your timezone
+TZ=Europe/Amsterdam
+
+# Domain for Traefik routing (only needed with Traefik)
+DOMAIN=local  # or yourdomain.com
+
+# Authelia secrets (auto-generated by bootstrap)
+AUTHELIA_JWT_SECRET=<generated>
+AUTHELIA_SESSION_SECRET=<generated>
+AUTHELIA_STORAGE_ENCRYPTION_KEY=<generated>
+```
+
+### VPN Configuration (Optional)
+
+To route qBittorrent through VPN (recommended for privacy):
+
+```bash
+# Edit env/.env.media
+VPN_ENABLED=true
+VPN_SERVICE_PROVIDER=protonvpn  # or mullvad, nordvpn, etc.
+VPN_WIREGUARD_PRIVATE_KEY=<your-key>
+
+# Deploy with VPN profile
+docker compose -f compose/docker-compose.media.yml --profile media-vpn up -d
+```
+
+### Directory Paths
+
+All data stored under `/srv/orion-sentinel-core/` by default. Customize in `.env`:
+
+```bash
+CORE_ROOT=/srv/orion-sentinel-core/core
+MEDIA_CONFIG_ROOT=/srv/orion-sentinel-core/media/config
+MEDIA_ROOT=/srv/orion-sentinel-core/media/content
+MONITORING_ROOT=/srv/orion-sentinel-core/monitoring
+HOME_AUTOMATION_ROOT=/srv/orion-sentinel-core/home-automation
+```
+
+## Makefile Commands
+
+All common operations via `make`:
+
+```bash
+# Deployment
+make up-media           # Start media stack
+make up-traefik         # Start Traefik + Authelia  
+make up-observability   # Start monitoring
+make up-homeauto        # Start home automation
+make up-full            # Start everything
+
+# Management  
+make down               # Stop all services
+make restart            # Restart all
+make restart SVC=name   # Restart specific service
+make logs               # View all logs
+make logs SVC=name      # View specific logs
+make status             # Show service status
+make health             # Check service health
+
+# Maintenance
+make pull               # Update images
+make backup             # Run backup
+make clean              # Clean up
+
+# Help
+make help               # Show all commands
+```
+
+## Service Configuration
+
+### Initial Setup Workflow
+
+1. **Start media stack** - `make up-media`
+
+2. **Configure Prowlarr** (indexer manager)
+   - Add your indexers (torrent sites)
+   - Sync to Sonarr and Radarr
+
+3. **Configure Sonarr/Radarr**
+   - Add qBittorrent as download client
+   - Set up quality profiles
+   - Add root folders
+
+4. **Configure Jellyfin**
+   - Add media libraries
+   - Set up users
+   - Configure transcoding
+
+5. **Configure Jellyseerr** (request management)
+   - Connect to Jellyfin
+   - Connect to Sonarr/Radarr
+   - Set up users and permissions
+
+### Authelia Users (when using Traefik)
+
+Edit user database:
+
+```bash
+nano /srv/orion-sentinel-core/core/authelia/users.yml
+```
+
+Generate password hash:
+
+```bash
+docker run --rm authelia/authelia:latest \
+  authelia crypto hash generate argon2 --password 'YourPassword'
+```
+
+Restart Authelia:
+
+```bash
+make restart SVC=authelia
+```
+
+### DNS Configuration
+
+For Traefik to work with friendly names, add DNS entries:
+
+**Option 1: Local /etc/hosts**
+```bash
+echo "192.168.1.100  jellyfin.local sonarr.local radarr.local" | sudo tee -a /etc/hosts
+```
+
+**Option 2: Pi-hole / DNS Server**
+Add local DNS records pointing to CoreSrv IP.
+
+**Option 3: Split DNS**
+Configure router or local DNS for `*.local` → CoreSrv IP
+
+## Module Details
+
+### Media Stack
+
+Based on **navilg/media-stack** patterns for stability:
+
+- **Jellyfin** - Media streaming server (Plex alternative)
+- **Sonarr** - TV show automation
+- **Radarr** - Movie automation  
+- **qBittorrent** - Torrent client (optional VPN routing)
+- **Prowlarr** - Indexer manager (connects to Sonarr/Radarr)
+- **Jellyseerr** - Request management (Overseerr for Jellyfin)
+- **Bazarr** - Subtitle management (optional, media-extra profile)
+
+**Profiles:**
+- `media-core` - Essential services (default)
+- `media-vpn` - qBittorrent through VPN
+- `media-extra` - Bazarr, Recommendarr
+
+### Traefik (Reverse Proxy)
+
+- **Automatic HTTPS** - Let's Encrypt certificates
+- **HTTP→HTTPS redirect** - Enforced secure connections
+- **Friendly hostnames** - service.yourdomain.com
+- **Dynamic configuration** - Add services via labels
+
+### Authelia (SSO & 2FA)
+
+- **Single Sign-On** - One login for all services
+- **Two-Factor Authentication** - TOTP, WebAuthn support
+- **Access control** - Per-service policies
+- **Session management** - Redis-backed sessions
+
+### Observability
+
+- **Prometheus** - Metrics collection from all services
+- **Grafana** - Dashboards and visualization
+- **Loki** - Log aggregation (all container logs)
+- **Promtail** - Log shipping agent
+- **Uptime Kuma** - Uptime monitoring with alerts
+- **Node Exporter** - Host system metrics
+- **cAdvisor** - Container metrics
+
+**Pre-built dashboards** in `grafana_dashboards/`:
+- System Overview
+- Container Performance
+- More available from Grafana.com
 
 ### Home Automation
 
+- **Home Assistant** - Smart home hub
+- **Mosquitto** - MQTT broker for IoT devices
+- **Zigbee2MQTT** - Zigbee device gateway (requires USB coordinator)
+- **Mealie** - Recipe and meal planning
+- **DSMR Reader** - Dutch smart meter monitoring (optional)
+
+## Hardware Requirements
+
+### Dell OptiPlex Recommended Specs
+
+- **CPU**: Intel i5/i7 (4+ cores)
+- **RAM**: 16GB minimum, 32GB recommended
+- **Storage**: 
+  - 100GB SSD for OS and configs
+  - 500GB+ HDD/SSD for media
+- **Network**: Gigabit Ethernet
+- **Optional**: Intel iGPU for Jellyfin hardware transcoding
+
+### USB Devices
+
+- **Zigbee Coordinator**: Sonoff Zigbee 3.0 USB, ConBee II, or similar
+- **P1 Cable**: For DSMR Reader (Netherlands smart meters)
+
+Find USB device paths:
+
 ```bash
-# Setup
-cp env/.env.homeauto.example env/.env.homeauto
-
-# Start
-./scripts/orionctl up homeauto
+ls -l /dev/serial/by-id/
+# or
+ls -l /dev/ttyACM* /dev/ttyUSB*
 ```
-
-## Installation Order
-
-For a complete setup, install modules in this order:
-
-1. **Media** (most important, must be rock-solid)
-2. **Gateway** (adds reverse proxy + SSO to existing services)
-3. **Observability** (monitoring for all services)
-4. **Home Automation** (when ready)
-
-Each step is optional - the media stack works perfectly fine on its own.
 
 ## Directory Structure
 
+After installation, your filesystem looks like:
+
 ```
-/srv/
-├── media/                      # Media content
-│   ├── downloads/              # qBittorrent downloads
-│   │   ├── movies/
-│   │   └── tv/
-│   └── library/                # Organized media (Jellyfin)
-│       ├── movies/
-│       └── tv/
-└── docker/
-    ├── media/                  # Media service configs
-    │   ├── jellyfin/config/
-    │   ├── qbittorrent/config/
-    │   ├── sonarr/config/
-    │   ├── radarr/config/
-    │   ├── prowlarr/config/
-    │   └── jellyseerr/config/
-    ├── gateway/                # Gateway service configs
-    ├── observability/          # Monitoring service configs
-    └── homeauto/               # Home automation configs
-```
-
-**📖 For detailed installation instructions, see [INSTALL.md](INSTALL.md)**
-
-## Documentation
-
-- **[INSTALL.md](INSTALL.md)** - ⚡ **Quick installation guide**
-- **[docs/SETUP-CoreSrv.md](docs/SETUP-CoreSrv.md)** - Detailed CoreSrv setup guide
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Complete 3-node system architecture
-- **[docs/UPSTREAM-SYNC.md](docs/UPSTREAM-SYNC.md)** - Sync workflow for upstream updates
-- **[docs/CREDITS.md](docs/CREDITS.md)** - Acknowledgements and licenses
-
-### Module Compose Files
-
-| File | Module | Description |
-|------|--------|-------------|
-| `compose/docker-compose.media.yml` | Media | Jellyfin + *arr + qBittorrent |
-| `compose/docker-compose.gateway.yml` | Gateway | Traefik + Authelia |
-| `compose/docker-compose.observability.yml` | Observability | Prometheus + Grafana + Loki |
-| `compose/docker-compose.homeauto.yml` | Home Automation | Home Assistant + Zigbee + MQTT |
-
-### Environment Files
-
-| File | Module | Description |
-|------|--------|-------------|
-| `env/.env.media.modular.example` | Media | Media stack configuration |
-| `env/.env.gateway.example` | Gateway | Gateway configuration + secrets |
-| `env/.env.observability.example` | Observability | Monitoring configuration |
-| `env/.env.homeauto.example` | Home Automation | Home automation configuration |
-
-### Service-Specific READMEs
-
-- [Core Services](core/README.md) - Traefik + Authelia
-- [Media Stack](media/README.md) - Jellyfin + *arr + VPN
-- [Monitoring Stack](monitoring/README.md) - Prometheus + Grafana + Loki
-- [Home Automation](home-automation/README.md) - Home Assistant + Zigbee2MQTT + MQTT + Mealie
-
-## Migration from Old Stack
-
-If you were using the old monolithic compose.yml:
-
-1. **Stop the old stack:**
-   ```bash
-   docker compose down
-   ```
-
-2. **The old compose file is archived at:**
-   ```
-   legacy/compose.yml.monolithic
-   ```
-
-3. **Start the new modular media stack:**
-   ```bash
-   ./scripts/orionctl up media
-   ```
-
-4. **Gradually add other modules as needed**
-
-The new media module is designed to be the stable, primary module that works independently of all other infrastructure. Your existing data and configurations should continue to work - just update the paths in your env file if needed.
-
-## Profiles (Media Module)
-
-The media module uses profiles to control which services start:
-
-- **`media-core`** - Jellyfin + *arr + qBittorrent (no VPN)
-- **`media-vpn`** - Gluetun VPN + qBittorrent (torrent privacy)
-- **`media-extra`** - Bazarr + Recommendarr (optional extras)
-
-Start specific profiles:
-
-```bash
-# Media core (default)
-./scripts/orionctl up media
-
-# With VPN
-./scripts/orionctl up media media-vpn
-
-# Or directly with docker compose
-docker compose -f compose/docker-compose.media.yml --profile media-core up -d
+/srv/orion-sentinel-core/
+├── core/
+│   ├── traefik/          # Reverse proxy configs
+│   ├── authelia/         # SSO & user database
+│   └── redis/            # Session storage
+├── media/
+│   ├── config/           # Service configs
+│   │   ├── jellyfin/
+│   │   ├── sonarr/
+│   │   ├── radarr/
+│   │   └── ...
+│   └── content/          # Media files
+│       ├── downloads/    # qBittorrent downloads
+│       └── library/      # Organized media
+├── monitoring/
+│   ├── prometheus/
+│   ├── grafana/
+│   ├── loki/
+│   └── uptime-kuma/
+└── home-automation/
+    ├── homeassistant/
+    ├── zigbee2mqtt/
+    ├── mosquitto/
+    └── mealie/
 ```
 
 ## Security
 
-### Zero-Trust Architecture
+### Built-in Security Features
 
-- All services behind Traefik reverse proxy
-- Authelia SSO with 2FA for all admin tools
-- VPN isolation for torrent traffic (qBittorrent)
-- No services exposed without authentication
+✓ **Reverse Proxy** - All services behind Traefik  
+✓ **HTTPS Everywhere** - Automatic Let's Encrypt certificates  
+✓ **SSO + 2FA** - Authelia authentication for all admin tools  
+✓ **VPN Isolation** - qBittorrent traffic through VPN  
+✓ **No Direct Exposure** - Services not accessible without auth  
+✓ **Secret Management** - All credentials in .env (git-ignored)  
+✓ **Network Isolation** - Services in separate Docker networks  
+
+### Security Best Practices
+
+1. **Change all default passwords** in `.env`
+2. **Enable 2FA** in Authelia for all users
+3. **Use VPN** for torrent traffic
+4. **Rotate secrets** every 6-12 months
+5. **Keep services updated** - `make pull && make up-full`
+6. **Regular backups** - `make backup`
+7. **Monitor logs** for suspicious activity
 
 ### Secrets Management
 
-- All secrets in `.env.*` files (git-ignored)
-- Generate strong secrets: `openssl rand -hex 32`
-- See [secrets/README.md](secrets/README.md) for details
+Never commit `.env` files to version control (already in `.gitignore`).
 
-## Inspired By
+Store backups securely:
+- Password manager (1Password, Bitwarden)
+- Encrypted USB drive
+- Encrypted cloud storage
 
-This project reuses patterns from excellent upstream projects:
+## Troubleshooting
 
-- [AdrienPoupa/docker-compose-nas](https://github.com/AdrienPoupa/docker-compose-nas) - NAS/media stack patterns
-- [navilg/media-stack](https://github.com/navilg/media-stack) - Modern Jellyfin + AI recommendations
+### Common Issues
 
-See [CREDITS.md](docs/CREDITS.md) for details and licenses.
+**Services not starting:**
+```bash
+make logs SVC=<servicename>  # Check logs
+make status                  # Check container status
+```
+
+**Permission errors:**
+```bash
+id  # Verify PUID/PGID in .env match
+sudo chown -R $USER:$USER /srv/orion-sentinel-core
+```
+
+**Can't access via Traefik:**
+```bash
+# Check DNS resolution
+ping jellyfin.local
+
+# Check Traefik logs
+make logs SVC=traefik
+
+# Verify service has correct labels
+docker inspect <container> | grep traefik
+```
+
+**VPN not connecting:**
+```bash
+make logs SVC=gluetun
+# Verify credentials in env/.env.media
+```
+
+**Out of disk space:**
+```bash
+# Check usage
+df -h
+
+# Clean up Docker
+make clean
+docker system prune -a
+```
+
+## Monitoring & Observability
+
+### Grafana Dashboards
+
+Pre-configured dashboards in `grafana_dashboards/`:
+
+1. **System Overview** - CPU, RAM, disk, network
+2. **Container Performance** - Docker container metrics
+3. **Service Health** - Application-specific metrics
+
+Import more from [Grafana.com](https://grafana.com/grafana/dashboards/):
+- **1860** - Node Exporter Full
+- **893** - Docker Monitoring  
+- **12486** - Traefik Dashboard
+
+### Prometheus Metrics
+
+Automatically scraping:
+- Node Exporter (host metrics)
+- cAdvisor (container metrics)
+- Service endpoints (application metrics)
+
+View targets: http://prometheus.local/targets
+
+### Loki Logs
+
+All container logs aggregated in Loki.
+
+View in Grafana → Explore → Loki
+
+## Backup & Restore
+
+### What to Backup
+
+**Critical:**
+- `.env` file and `env/*.env` files
+- `/srv/orion-sentinel-core/core/` (Traefik certs, Authelia users)
+- Service configs (Sonarr, Radarr, etc.)
+
+**Optional:**
+- Prometheus data (can rebuild)
+- Media files (large, can re-download)
+
+### Backup Script
+
+```bash
+make backup  # Creates timestamped archive
+```
+
+Backups saved to `/srv/orion-sentinel-core/backups/`
+
+### Restore
+
+```bash
+# Extract backup
+cd /srv/orion-sentinel-core
+tar -xzf backups/backup-YYYY-MM-DD.tar.gz
+
+# Restart services
+make down
+make up-full
+```
+
+## Updates & Maintenance
+
+### Update Docker Images
+
+```bash
+make pull      # Pull latest images
+make down      # Stop services
+make up-full   # Start with new images
+```
+
+### Update Repository
+
+```bash
+cd ~/Orion-Sentinel-CoreSrv
+git pull
+# Review CHANGELOG for breaking changes
+make down
+make up-full
+```
+
+### Automatic Updates (Optional)
+
+Enable Watchtower in `.env`:
+
+```bash
+WATCHTOWER_ENABLED=true
+```
+
+Watchtower automatically updates containers (use with caution!).
+
+## Advanced Configuration
+
+### Custom Traefik Configuration
+
+Edit dynamic configs:
+
+```bash
+nano /srv/orion-sentinel-core/core/traefik/dynamic/security.yml
+```
+
+Restart Traefik:
+
+```bash
+make restart SVC=traefik
+```
+
+### Custom Grafana Dashboards
+
+Add JSON files to `grafana_dashboards/`, restart Grafana:
+
+```bash
+make restart SVC=grafana
+```
+
+### Multiple qBittorrent Instances
+
+Edit `compose/docker-compose.media.yml` to add more instances.
+
+### External Storage
+
+Mount NAS/SAN for media:
+
+```bash
+# In .env
+MEDIA_ROOT=/mnt/nas/media
+```
+
+## Documentation
+
+- **[PLAN.md](PLAN.md)** - Architecture & deployment plan
+- **[INSTALL.md](INSTALL.md)** - Detailed installation guide
+- **[docs/SETUP-CoreSrv.md](docs/SETUP-CoreSrv.md)** - Dell OptiPlex setup guide
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - 3-node system architecture
+- **[docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md)** - Security best practices
+- **[docs/RUNBOOKS.md](docs/RUNBOOKS.md)** - Operational procedures
+- **[docs/CREDITS.md](docs/CREDITS.md)** - Acknowledgements and licenses
+
+## Support & Community
+
+- **Issues**: https://github.com/orionsentinel/Orion-Sentinel-CoreSrv/issues
+- **Discussions**: https://github.com/orionsentinel/Orion-Sentinel-CoreSrv/discussions
+
+## Credits & Inspiration
+
+This project builds on excellent work from:
+
+- **[navilg/media-stack](https://github.com/navilg/media-stack)** - Stable, proven media stack patterns
+- **[AdrienPoupa/docker-compose-nas](https://github.com/AdrienPoupa/docker-compose-nas)** - NAS/media inspiration
+- **LinuxServer.io** - Excellent Docker images
+- **Traefik Labs** - Modern reverse proxy
+- **Authelia** - Open-source SSO solution
+
+See [docs/CREDITS.md](docs/CREDITS.md) for full credits and licenses.
 
 ## License
 
 MIT License - See [LICENSE](LICENSE)
 
-## Support
-
-- **Issues:** https://github.com/orionsentinel/Orion-Sentinel-CoreSrv/issues
-- **Discussions:** https://github.com/orionsentinel/Orion-Sentinel-CoreSrv/discussions
-
 ---
 
-**Maintained By:** Orion Home Lab Team  
+**Maintained by:** Orion Home Lab Team  
 **Last Updated:** 2025-12-09
+
+**Ready to deploy?** Run `make help` to see all commands!
