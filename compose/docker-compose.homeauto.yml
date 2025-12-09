@@ -1,0 +1,209 @@
+# Orion-Sentinel-CoreSrv Home Automation Module
+# Home Assistant + Mosquitto + Zigbee2MQTT + Mealie + DSMR Reader
+#
+# This module provides home automation capabilities:
+#   - Home Assistant: Smart home hub
+#   - Mosquitto: MQTT broker for IoT
+#   - Zigbee2MQTT: Zigbee device gateway
+#   - Mealie: Recipe and meal planning
+#   - DSMR Reader: Dutch smart meter monitoring (optional)
+#
+# Usage:
+#   ./scripts/orionctl up homeauto
+#
+# Direct docker compose:
+#   docker compose -f compose/docker-compose.homeauto.yml up -d
+#
+# Hardware requirements:
+#   - Zigbee USB coordinator (for Zigbee2MQTT)
+#   - P1 cable (for DSMR Reader, Netherlands only)
+#
+# Ports:
+#   8123 - Home Assistant
+#   1883 - MQTT
+#   9001 - MQTT WebSocket
+#   8080 - Zigbee2MQTT WebUI
+#   9000 - Mealie
+#   80   - DSMR Reader
+
+services:
+  ############################
+  # MOSQUITTO: MQTT Broker
+  ############################
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.18
+    container_name: orion_mosquitto
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${HOMEAUTO_CONFIG_ROOT:-/srv/docker/homeauto}/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ${HOMEAUTO_CONFIG_ROOT:-/srv/docker/homeauto}/mosquitto/data:/mosquitto/data
+      - ${HOMEAUTO_CONFIG_ROOT:-/srv/docker/homeauto}/mosquitto/log:/mosquitto/log
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    networks:
+      - orion_homeauto_net
+    security_opt:
+      - no-new-privileges:true
+
+  ############################
+  # ZIGBEE2MQTT: Zigbee Gateway
+  ############################
+
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:1.40.2
+    container_name: orion_zigbee2mqtt
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${HOMEAUTO_CONFIG_ROOT:-/srv/docker/homeauto}/zigbee2mqtt/data:/app/data
+      - /run/udev:/run/udev:ro
+    devices:
+      - ${ZIGBEE_DEVICE:-/dev/ttyACM0}:/dev/ttyACM0
+    networks:
+      - orion_homeauto_net
+      - orion_backbone_net
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.zigbee2mqtt.rule=Host(`zigbee.${DOMAIN:-local}`)"
+      - "traefik.http.routers.zigbee2mqtt.entrypoints=websecure"
+      - "traefik.http.routers.zigbee2mqtt.tls=true"
+      - "traefik.http.routers.zigbee2mqtt.middlewares=secure-chain@file"
+      - "traefik.http.services.zigbee2mqtt.loadbalancer.server.port=8080"
+
+  ############################
+  # HOME ASSISTANT: Smart Home Hub
+  ############################
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2024.12.1
+    container_name: orion_homeassistant
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${HOMEAUTO_CONFIG_ROOT:-/srv/docker/homeauto}/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - orion_homeauto_net
+      - orion_backbone_net
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homeassistant.rule=Host(`ha.${DOMAIN:-local}`)"
+      - "traefik.http.routers.homeassistant.entrypoints=websecure"
+      - "traefik.http.routers.homeassistant.tls=true"
+      - "traefik.http.services.homeassistant.loadbalancer.server.port=8123"
+
+  ############################
+  # MEALIE: Recipe Management
+  ############################
+
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:v1.12.0
+    container_name: orion_mealie
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - BASE_URL=https://mealie.${DOMAIN:-local}
+      - ALLOW_SIGNUP=${MEALIE_ALLOW_SIGNUP:-true}
+      - MAX_WORKERS=1
+      - WEB_CONCURRENCY=1
+      - API_DOCS=true
+    volumes:
+      - ${HOMEAUTO_CONFIG_ROOT:-/srv/docker/homeauto}/mealie:/app/data
+    networks:
+      - orion_homeauto_net
+      - orion_backbone_net
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mealie.rule=Host(`mealie.${DOMAIN:-local}`)"
+      - "traefik.http.routers.mealie.entrypoints=websecure"
+      - "traefik.http.routers.mealie.tls=true"
+      - "traefik.http.routers.mealie.middlewares=secure-chain@file"
+      - "traefik.http.services.mealie.loadbalancer.server.port=9000"
+
+  ############################
+  # DSMR: Dutch Smart Meter (Optional)
+  ############################
+
+  # DSMR Database
+  dsmrdb:
+    image: postgres:15-alpine
+    container_name: orion_dsmrdb
+    profiles: ["dsmr"]
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DSMR_DB_NAME:-dsmrreader}
+      - POSTGRES_USER=${DSMR_DB_USER:-dsmrreader}
+      - POSTGRES_PASSWORD=${DSMR_DB_PASSWORD:-dsmrreader}
+    volumes:
+      - ${HOMEAUTO_CONFIG_ROOT:-/srv/docker/homeauto}/dsmr/db:/var/lib/postgresql/data
+    networks:
+      - orion_homeauto_net
+    security_opt:
+      - no-new-privileges:true
+
+  # DSMR Reader
+  dsmr:
+    image: xirixiz/dsmr-reader-docker:latest
+    container_name: orion_dsmr
+    profiles: ["dsmr"]
+    restart: unless-stopped
+    depends_on:
+      - dsmrdb
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - DJANGO_TIME_ZONE=${TZ:-Europe/Amsterdam}
+      - DB_HOST=dsmrdb
+      - DB_PORT=5432
+      - DB_NAME=${DSMR_DB_NAME:-dsmrreader}
+      - DB_USER=${DSMR_DB_USER:-dsmrreader}
+      - DB_PASS=${DSMR_DB_PASSWORD:-dsmrreader}
+      - DSMR_USER=${DSMR_USER:-admin}
+      - DSMR_EMAIL=${DSMR_EMAIL:-admin@local}
+      - DSMR_PASSWORD=${DSMR_PASSWORD:-admin}
+    devices:
+      - ${DSMR_SERIAL_PORT:-/dev/ttyUSB0}:${DSMR_SERIAL_PORT:-/dev/ttyUSB0}
+    volumes:
+      - ${HOMEAUTO_CONFIG_ROOT:-/srv/docker/homeauto}/dsmr/app:/app
+    networks:
+      - orion_homeauto_net
+      - orion_backbone_net
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dsmr.rule=Host(`energy.${DOMAIN:-local}`)"
+      - "traefik.http.routers.dsmr.entrypoints=websecure"
+      - "traefik.http.routers.dsmr.tls=true"
+      - "traefik.http.routers.dsmr.middlewares=secure-chain@file"
+      - "traefik.http.services.dsmr.loadbalancer.server.port=80"
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_homeauto_net:
+    name: orion_homeauto_net
+    driver: bridge
+  # Backbone network for cross-module communication (external)
+  orion_backbone_net:
+    name: orion_backbone_net
+    external: true

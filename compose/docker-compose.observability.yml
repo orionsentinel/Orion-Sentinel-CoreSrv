@@ -1,0 +1,217 @@
+# Orion-Sentinel-CoreSrv Observability Module
+# Prometheus + Grafana + Loki + Promtail + Uptime Kuma
+#
+# This module provides full-stack observability:
+#   - Prometheus: Metrics collection and alerting
+#   - Grafana: Dashboards and visualization
+#   - Loki: Log aggregation
+#   - Promtail: Log collection agent
+#   - Uptime Kuma: Service uptime monitoring
+#   - Node Exporter: Host metrics
+#   - cAdvisor: Container metrics
+#
+# Usage:
+#   ./scripts/orionctl up observability
+#
+# Direct docker compose:
+#   docker compose -f compose/docker-compose.observability.yml up -d
+#
+# Ports:
+#   9090 - Prometheus (internal, via Traefik)
+#   3000 - Grafana (internal, via Traefik)
+#   3100 - Loki (internal only)
+#   3001 - Uptime Kuma (internal, via Traefik)
+#   9100 - Node Exporter (host network)
+
+services:
+  ############################
+  # NODE EXPORTER: Host Metrics
+  ############################
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.1
+    container_name: orion_node_exporter
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro,rslave
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  ############################
+  # CADVISOR: Container Metrics
+  ############################
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: orion_cadvisor
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - orion_observability_net
+
+  ############################
+  # PROMETHEUS: Metrics Collection
+  ############################
+
+  prometheus:
+    image: prom/prometheus:v2.54.0
+    container_name: orion_prometheus
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-15d}'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ${OBSERVABILITY_CONFIG_ROOT:-/srv/docker/observability}/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${OBSERVABILITY_CONFIG_ROOT:-/srv/docker/observability}/prometheus/data:/prometheus
+    networks:
+      - orion_observability_net
+      - orion_backbone_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${DOMAIN:-local}`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.middlewares=secure-chain@file"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  ############################
+  # LOKI: Log Aggregation
+  ############################
+
+  loki:
+    image: grafana/loki:2.9.5
+    container_name: orion_loki
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - ${OBSERVABILITY_CONFIG_ROOT:-/srv/docker/observability}/loki:/loki
+      - ${OBSERVABILITY_CONFIG_ROOT:-/srv/docker/observability}/loki/config.yml:/etc/loki/config.yml:ro
+    networks:
+      - orion_observability_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3100/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  ############################
+  # PROMTAIL: Log Collection
+  ############################
+
+  promtail:
+    image: grafana/promtail:2.9.5
+    container_name: orion_promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${OBSERVABILITY_CONFIG_ROOT:-/srv/docker/observability}/promtail/config.yml:/etc/promtail/config.yml:ro
+    networks:
+      - orion_observability_net
+
+  ############################
+  # GRAFANA: Dashboards
+  ############################
+
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: orion_grafana
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
+      - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN:-local}
+      - GF_INSTALL_PLUGINS=${GRAFANA_INSTALL_PLUGINS:-}
+    volumes:
+      - ${OBSERVABILITY_CONFIG_ROOT:-/srv/docker/observability}/grafana/data:/var/lib/grafana
+      - ${OBSERVABILITY_CONFIG_ROOT:-/srv/docker/observability}/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - orion_observability_net
+      - orion_backbone_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN:-local}`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.routers.grafana.middlewares=secure-chain@file"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  ############################
+  # UPTIME KUMA: Status Monitor
+  ############################
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1.23.11
+    container_name: orion_uptime_kuma
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${OBSERVABILITY_CONFIG_ROOT:-/srv/docker/observability}/uptime-kuma:/app/data
+    networks:
+      - orion_observability_net
+      - orion_backbone_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3001 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.uptime-kuma.rule=Host(`status.${DOMAIN:-local}`)"
+      - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
+      - "traefik.http.routers.uptime-kuma.tls=true"
+      - "traefik.http.routers.uptime-kuma.middlewares=secure-chain@file"
+      - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_observability_net:
+    name: orion_observability_net
+    driver: bridge
+  # Backbone network for cross-module communication (external)
+  orion_backbone_net:
+    name: orion_backbone_net
+    external: true

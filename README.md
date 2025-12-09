@@ -1,43 +1,58 @@
 # Orion-Sentinel-CoreSrv
 
-**Production-ready home lab stack for the Orion core services server.**
+**Production-ready, modular home lab stack for the Orion core services server.**
 
 ## Overview
 
-Orion-Sentinel-CoreSrv is the central services hub in a 3-node home lab architecture, providing:
+Orion-Sentinel-CoreSrv is the central services hub in a 3-node home lab architecture. The stack is organized into **independent modules** that can be started and stopped separately:
 
-- **Media Stack:** Jellyfin + Sonarr + Radarr + qBittorrent (behind VPN) + Jellyseerr + AI recommendations
-- **Core Services:** Traefik reverse proxy + Authelia SSO (zero-trust security)
-- **Cloud:** Nextcloud + PostgreSQL
-- **Monitoring:** Prometheus + Grafana + Loki + Promtail + Uptime Kuma
-- **Search:** SearXNG (privacy-respecting metasearch)
-- **Home Automation:** Home Assistant + Zigbee2MQTT + Mosquitto MQTT + Mealie + DSMR Reader
-- **Maintenance:** Homepage dashboard + Watchtower + Autoheal
+| Module | Services | Description |
+|--------|----------|-------------|
+| **Media** | Jellyfin, Sonarr, Radarr, qBittorrent, Prowlarr, Jellyseerr | Media streaming & automation |
+| **Gateway** | Traefik, Authelia, Redis | Reverse proxy & SSO |
+| **Observability** | Prometheus, Grafana, Loki, Promtail, Uptime Kuma | Monitoring & alerting |
+| **Home Automation** | Home Assistant, Mosquitto, Zigbee2MQTT, Mealie | Smart home & IoT |
 
-## Architecture
+## Modular Architecture
 
 ```
-Internet → Router → [CoreSrv] + [Pi DNS] + [Pi NetSec]
-                         ↓
-              ┌──────────┴──────────┐
-              │   Docker Networks   │
-              ├────────────────────┤
-              │ orion_proxy        │ ← Traefik + Authelia
-              │ orion_internal     │ ← Service communication
-              │ orion_vpn          │ ← qBittorrent isolation
-              │ orion_monitoring   │ ← Metrics & logs
-              └────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                         MODULAR ARCHITECTURE                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌────────────┐ │
+│  │   MEDIA     │  │   GATEWAY   │  │OBSERVABILITY│  │  HOMEAUTO  │ │
+│  │             │  │             │  │             │  │            │ │
+│  │ • Jellyfin  │  │ • Traefik   │  │ • Prometheus│  │ • Home     │ │
+│  │ • Sonarr    │  │ • Authelia  │  │ • Grafana   │  │   Assistant│ │
+│  │ • Radarr    │  │ • Redis     │  │ • Loki      │  │ • Zigbee   │ │
+│  │ • qBit      │  │             │  │ • Uptime    │  │ • Mealie   │ │
+│  │ • Prowlarr  │  │             │  │   Kuma      │  │ • MQTT     │ │
+│  │ • Jellyseerr│  │             │  │             │  │            │ │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └─────┬──────┘ │
+│         │                │                │                │       │
+│         │    ┌───────────┴────────────────┴────────────────┘       │
+│         │    │         orion_backbone_net                          │
+│         │    │    (optional cross-module network)                  │
+│         │    └─────────────────────────────────────────────────────│
+│         │                                                          │
+│    orion_media_net                                                 │
+│   (standalone)                                                     │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3-Node Setup
+### Key Benefits
 
-- **CoreSrv** (this repo) - Media, cloud, monitoring, search, SSO
-- **Pi 5 #1** - DNS (Pi-hole + Unbound + HA VIP)
-- **Pi 5 #2** - Network Security (Orion Sentinel + AI)
+- **Media is standalone**: The media module works independently without any other infrastructure
+- **Incremental adoption**: Start with media, add gateway/monitoring later
+- **Clean separation**: Each module has its own network and configuration
+- **Simpler debugging**: Smaller compose files, easier to reason about
+- **No hidden dependencies**: Missing env vars have safe defaults
 
-## Quick Start
+## Quick Start (Media Stack)
 
-Get up and running in **5 simple steps**:
+Get the media stack running in **3 simple steps**:
 
 ### 1. Install Docker
 
@@ -48,89 +63,228 @@ sudo apt install -y docker-compose-plugin
 # Log out and back in
 ```
 
-### 2. Clone Repository
+### 2. Setup Directories & Environment
 
 ```bash
+# Clone the repo
 git clone https://github.com/orionsentinel/Orion-Sentinel-CoreSrv.git
 cd Orion-Sentinel-CoreSrv
+
+# Create media directories
+sudo mkdir -p /srv/media/{downloads,library}/{movies,tv}
+sudo mkdir -p /srv/docker/media/{jellyfin,qbittorrent,sonarr,radarr,prowlarr,jellyseerr}/config
+sudo chown -R $USER:$USER /srv/media /srv/docker/media
+
+# Copy and customize the env file
+cp env/.env.media.modular.example env/.env.media
+# Edit env/.env.media if needed (defaults work out of the box)
 ```
 
-### 3. Run Setup Script
-
-The setup script will configure everything automatically:
+### 3. Start the Media Stack
 
 ```bash
-./scripts/setup.sh
+./scripts/orionctl up media
 ```
 
-This interactive script will:
-- ✅ Check prerequisites
-- ✅ Create directory structure
-- ✅ Configure environment files with secure generated secrets
-- ✅ Validate your setup
+### Access Services
 
-### 4. Start Services
+All media services are immediately accessible on your LAN:
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Jellyfin | http://localhost:8096 | Media streaming |
+| qBittorrent | http://localhost:5080 | Torrent client |
+| Radarr | http://localhost:7878 | Movie management |
+| Sonarr | http://localhost:8989 | TV show management |
+| Prowlarr | http://localhost:9696 | Indexer manager |
+| Jellyseerr | http://localhost:5055 | Request management |
+
+## Module Management
+
+Use the `orionctl` script to manage modules:
 
 ```bash
-# Start core services (Traefik + Authelia)
-./orionctl.sh up-core
+# Start a module
+./scripts/orionctl up media
+./scripts/orionctl up gateway
+./scripts/orionctl up observability
+./scripts/orionctl up homeauto
 
-# Or start everything
-./orionctl.sh up-full
+# Stop a module
+./scripts/orionctl down media
+
+# View status
+./scripts/orionctl status
+./scripts/orionctl status media
+
+# View logs
+./scripts/orionctl logs media
+./scripts/orionctl logs media jellyfin
+
+# Restart a service
+./scripts/orionctl restart media sonarr
 ```
 
-### 5. Access Services
+### Media Profiles
 
-All services are accessible via HTTPS with Authelia SSO:
+The media module supports multiple profiles:
 
-- **Authelia (SSO):** https://auth.local
-- **Traefik (Dashboard):** https://traefik.local
-- **Homepage Dashboard:** https://home.local
-- **Jellyfin:** https://jellyfin.local
-- **Jellyseerr:** https://requests.local
-- **Grafana:** https://grafana.local
-- **Nextcloud:** https://cloud.local
-- **SearXNG:** https://search.local
-- **Home Assistant:** https://ha.local
-- **Mealie (Recipes):** https://mealie.local
+```bash
+# Default: Core media services (no VPN)
+./scripts/orionctl up media
+
+# With VPN: Routes qBittorrent through Gluetun VPN
+./scripts/orionctl up media media-vpn
+
+# Extras: Bazarr (subtitles), Recommendarr (AI recommendations)
+docker compose -f compose/docker-compose.media.yml --profile media-extra up -d
+```
+
+## Adding Other Modules
+
+### Gateway (Traefik + Authelia)
+
+```bash
+# Setup
+cp env/.env.gateway.example env/.env.gateway
+# Edit env/.env.gateway - MUST change Authelia secrets!
+
+# Start
+./scripts/orionctl up gateway
+```
+
+### Observability (Prometheus + Grafana)
+
+```bash
+# Setup  
+cp env/.env.observability.example env/.env.observability
+
+# Start (requires gateway for reverse proxy)
+./scripts/orionctl up observability
+```
+
+### Home Automation
+
+```bash
+# Setup
+cp env/.env.homeauto.example env/.env.homeauto
+
+# Start
+./scripts/orionctl up homeauto
+```
+
+## Installation Order
+
+For a complete setup, install modules in this order:
+
+1. **Media** (most important, must be rock-solid)
+2. **Gateway** (adds reverse proxy + SSO to existing services)
+3. **Observability** (monitoring for all services)
+4. **Home Automation** (when ready)
+
+Each step is optional - the media stack works perfectly fine on its own.
+
+## Directory Structure
+
+```
+/srv/
+├── media/                      # Media content
+│   ├── downloads/              # qBittorrent downloads
+│   │   ├── movies/
+│   │   └── tv/
+│   └── library/                # Organized media (Jellyfin)
+│       ├── movies/
+│       └── tv/
+└── docker/
+    ├── media/                  # Media service configs
+    │   ├── jellyfin/config/
+    │   ├── qbittorrent/config/
+    │   ├── sonarr/config/
+    │   ├── radarr/config/
+    │   ├── prowlarr/config/
+    │   └── jellyseerr/config/
+    ├── gateway/                # Gateway service configs
+    ├── observability/          # Monitoring service configs
+    └── homeauto/               # Home automation configs
+```
 
 **📖 For detailed installation instructions, see [INSTALL.md](INSTALL.md)**
 
 ## Documentation
 
-- **[INSTALL.md](INSTALL.md)** - ⚡ **Quick installation guide (start here!)**
-- **[SETUP-CoreSrv.md](docs/SETUP-CoreSrv.md)** - Detailed CoreSrv setup guide
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Complete 3-node system architecture
-- **[UPSTREAM-SYNC.md](docs/UPSTREAM-SYNC.md)** - Sync workflow for upstream updates
-- **[CREDITS.md](docs/CREDITS.md)** - Acknowledgements and licenses
+- **[INSTALL.md](INSTALL.md)** - ⚡ **Quick installation guide**
+- **[docs/SETUP-CoreSrv.md](docs/SETUP-CoreSrv.md)** - Detailed CoreSrv setup guide
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Complete 3-node system architecture
+- **[docs/UPSTREAM-SYNC.md](docs/UPSTREAM-SYNC.md)** - Sync workflow for upstream updates
+- **[docs/CREDITS.md](docs/CREDITS.md)** - Acknowledgements and licenses
+
+### Module Compose Files
+
+| File | Module | Description |
+|------|--------|-------------|
+| `compose/docker-compose.media.yml` | Media | Jellyfin + *arr + qBittorrent |
+| `compose/docker-compose.gateway.yml` | Gateway | Traefik + Authelia |
+| `compose/docker-compose.observability.yml` | Observability | Prometheus + Grafana + Loki |
+| `compose/docker-compose.homeauto.yml` | Home Automation | Home Assistant + Zigbee + MQTT |
+
+### Environment Files
+
+| File | Module | Description |
+|------|--------|-------------|
+| `env/.env.media.modular.example` | Media | Media stack configuration |
+| `env/.env.gateway.example` | Gateway | Gateway configuration + secrets |
+| `env/.env.observability.example` | Observability | Monitoring configuration |
+| `env/.env.homeauto.example` | Home Automation | Home automation configuration |
 
 ### Service-Specific READMEs
 
 - [Core Services](core/README.md) - Traefik + Authelia
 - [Media Stack](media/README.md) - Jellyfin + *arr + VPN
 - [Monitoring Stack](monitoring/README.md) - Prometheus + Grafana + Loki
-- [Cloud Stack](cloud/README.md) - Nextcloud
-- [Search](search/README.md) - SearXNG
-- [Home Automation](home-automation/README.md) - Home Assistant + Zigbee2MQTT + MQTT + Mealie + DSMR Reader
-- [Maintenance](maintenance/README.md) - Homepage + automation tools
+- [Home Automation](home-automation/README.md) - Home Assistant + Zigbee2MQTT + MQTT + Mealie
 
-## Profiles
+## Migration from Old Stack
 
-Services are organized into Docker Compose profiles:
+If you were using the old monolithic compose.yml:
 
-- **`core`** - Traefik + Authelia (required)
-- **`media-core`** - Jellyfin + *arr + qBittorrent + VPN
-- **`media-ai`** - Recommendarr (AI recommendations)
-- **`cloud`** - Nextcloud + PostgreSQL
-- **`search`** - SearXNG
-- **`monitoring`** - Prometheus + Grafana + Loki + Uptime Kuma
-- **`home-automation`** - Home Assistant + Zigbee2MQTT + Mosquitto + Mealie + DSMR Reader
-- **`maintenance`** - Homepage + Watchtower + Autoheal
+1. **Stop the old stack:**
+   ```bash
+   docker compose down
+   ```
+
+2. **The old compose file is archived at:**
+   ```
+   legacy/compose.yml.monolithic
+   ```
+
+3. **Start the new modular media stack:**
+   ```bash
+   ./scripts/orionctl up media
+   ```
+
+4. **Gradually add other modules as needed**
+
+The new media module is designed to be the stable, primary module that works independently of all other infrastructure. Your existing data and configurations should continue to work - just update the paths in your env file if needed.
+
+## Profiles (Media Module)
+
+The media module uses profiles to control which services start:
+
+- **`media-core`** - Jellyfin + *arr + qBittorrent (no VPN)
+- **`media-vpn`** - Gluetun VPN + qBittorrent (torrent privacy)
+- **`media-extra`** - Bazarr + Recommendarr (optional extras)
 
 Start specific profiles:
 
 ```bash
-docker compose --profile core --profile media-core up -d
+# Media core (default)
+./scripts/orionctl up media
+
+# With VPN
+./scripts/orionctl up media media-vpn
+
+# Or directly with docker compose
+docker compose -f compose/docker-compose.media.yml --profile media-core up -d
 ```
 
 ## Security
@@ -169,4 +323,4 @@ MIT License - See [LICENSE](LICENSE)
 ---
 
 **Maintained By:** Orion Home Lab Team  
-**Last Updated:** 2025-12-07
+**Last Updated:** 2025-12-09

@@ -1,0 +1,322 @@
+# Orion-Sentinel-CoreSrv Media Module
+# Based on navilg/media-stack patterns for stability and simplicity
+#
+# This is a self-contained media stack that can run independently.
+# Use profiles to control what's started:
+#   - media-core: Jellyfin + qBittorrent + Sonarr + Radarr + Prowlarr + Jellyseerr
+#   - media-vpn: VPN (Gluetun) for torrent privacy
+#   - media-extra: Bazarr, Recommendarr, and other extras
+#
+# Usage:
+#   ./scripts/orionctl up media        # Start media-core profile (no VPN)
+#   ./scripts/orionctl up media-vpn    # Start with VPN enabled
+#
+# Direct docker compose:
+#   docker compose -f compose/docker-compose.media.yml --profile media-core up -d
+#
+# Host paths:
+#   /srv/media                      - Media content (downloads + library)
+#   /srv/docker/media/<service>/config  - Service configurations
+#
+# Ports:
+#   5080  - qBittorrent WebUI
+#   8096  - Jellyfin
+#   7878  - Radarr
+#   8989  - Sonarr
+#   9696  - Prowlarr
+#   5055  - Jellyseerr
+
+services:
+  ############################################
+  # MEDIA-CORE: Essential services
+  ############################################
+
+  # qBittorrent - Torrent client (runs directly without VPN by default)
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:4.6.7
+    container_name: orion_qbittorrent
+    profiles: ["media-core"]
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Amsterdam}
+      - WEBUI_PORT=5080
+    volumes:
+      - ${MEDIA_CONFIG_ROOT:-/srv/docker/media}/qbittorrent/config:/config
+      - ${MEDIA_ROOT:-/srv/media}:/downloads
+    ports:
+      - "5080:5080"
+    networks:
+      - orion_media_net
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5080 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Jellyfin - Media server
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:10.9.11
+    container_name: orion_jellyfin
+    profiles: ["media-core"]
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${MEDIA_CONFIG_ROOT:-/srv/docker/media}/jellyfin/config:/config
+      - ${MEDIA_ROOT:-/srv/media}:/data:ro
+    ports:
+      - "8096:8096"
+    networks:
+      - orion_media_net
+    # Intel hardware acceleration for transcoding (uncomment if you have Intel GPU)
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # group_add:
+    #   - video
+    #   - render
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8096/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Radarr - Movie management
+  radarr:
+    image: lscr.io/linuxserver/radarr:5.9.1
+    container_name: orion_radarr
+    profiles: ["media-core"]
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${MEDIA_CONFIG_ROOT:-/srv/docker/media}/radarr/config:/config
+      - ${MEDIA_ROOT:-/srv/media}:/media
+    ports:
+      - "7878:7878"
+    networks:
+      - orion_media_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7878/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Sonarr - TV show management
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:4.0.9
+    container_name: orion_sonarr
+    profiles: ["media-core"]
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${MEDIA_CONFIG_ROOT:-/srv/docker/media}/sonarr/config:/config
+      - ${MEDIA_ROOT:-/srv/media}:/media
+    ports:
+      - "8989:8989"
+    networks:
+      - orion_media_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8989/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Prowlarr - Indexer manager
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:1.21.2
+    container_name: orion_prowlarr
+    profiles: ["media-core"]
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${MEDIA_CONFIG_ROOT:-/srv/docker/media}/prowlarr/config:/config
+    ports:
+      - "9696:9696"
+    networks:
+      - orion_media_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9696/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Jellyseerr - Request management (Overseerr for Jellyfin)
+  jellyseerr:
+    image: fallenbagel/jellyseerr:1.8.0
+    container_name: orion_jellyseerr
+    profiles: ["media-core"]
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${MEDIA_CONFIG_ROOT:-/srv/docker/media}/jellyseerr/config:/app/config
+    ports:
+      - "5055:5055"
+    networks:
+      - orion_media_net
+    depends_on:
+      - radarr
+      - sonarr
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:5055/api/v1/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  ############################################
+  # MEDIA-VPN: VPN-based torrent client
+  ############################################
+
+  # Gluetun - VPN container (qBittorrent runs inside this network)
+  gluetun:
+    image: ${VPN_IMAGE:-qmcgaw/gluetun:latest}
+    container_name: orion_gluetun
+    profiles: ["media-vpn"]
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    cap_drop:
+      - ALL
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      # VPN provider configuration
+      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-protonvpn}
+      - VPN_TYPE=${VPN_TYPE:-wireguard}
+      # ProtonVPN WireGuard settings (default to safe empty values)
+      - WIREGUARD_PRIVATE_KEY=${VPN_WIREGUARD_PRIVATE_KEY:-}
+      - WIREGUARD_ADDRESSES=${VPN_WIREGUARD_ADDRESS:-10.2.0.2/32}
+      - VPN_ENDPOINT_PORT=${VPN_ENDPOINT_PORT:-51820}
+      - SERVER_COUNTRIES=${VPN_COUNTRY:-Netherlands}
+      # Security settings
+      - FIREWALL=on
+      - LOG_LEVEL=info
+      - DOT=off
+      - UPDATER_PERIOD=24h
+      - HTTPPROXY=off
+      - SHADOWSOCKS=off
+      - HEALTH_VPN_DURATION_INITIAL=30s
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      # qBittorrent WebUI is accessible via the VPN container
+      - "5080:5080"
+    networks:
+      - orion_media_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9999/v1/openvpn/status || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # qBittorrent (VPN mode) - runs inside gluetun network
+  qbittorrent-vpn:
+    image: lscr.io/linuxserver/qbittorrent:4.6.7
+    container_name: orion_qbittorrent_vpn
+    profiles: ["media-vpn"]
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Amsterdam}
+      - WEBUI_PORT=5080
+    volumes:
+      - ${MEDIA_CONFIG_ROOT:-/srv/docker/media}/qbittorrent/config:/config
+      - ${MEDIA_ROOT:-/srv/media}:/downloads
+    security_opt:
+      - no-new-privileges:true
+
+  ############################################
+  # MEDIA-EXTRA: Optional extras
+  ############################################
+
+  # Bazarr - Subtitle management
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:1.4.5
+    container_name: orion_bazarr
+    profiles: ["media-extra"]
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${MEDIA_CONFIG_ROOT:-/srv/docker/media}/bazarr/config:/config
+      - ${MEDIA_ROOT:-/srv/media}:/media
+    ports:
+      - "6767:6767"
+    networks:
+      - orion_media_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6767/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Recommendarr - AI-powered recommendations (optional)
+  recommendarr:
+    image: ghcr.io/ludeeus/recommendarr:latest
+    container_name: orion_recommendarr
+    profiles: ["media-extra"]
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - SONARR_URL=${SONARR_URL:-http://orion_sonarr:8989}
+      - SONARR_API_KEY=${SONARR_API_KEY:-}
+      - RADARR_URL=${RADARR_URL:-http://orion_radarr:7878}
+      - RADARR_API_KEY=${RADARR_API_KEY:-}
+      - JELLYFIN_URL=${JELLYFIN_URL:-http://orion_jellyfin:8096}
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY:-}
+      - TRAKT_CLIENT_ID=${TRAKT_CLIENT_ID:-}
+      - TRAKT_CLIENT_SECRET=${TRAKT_CLIENT_SECRET:-}
+      - TRAKT_ACCESS_TOKEN=${TRAKT_ACCESS_TOKEN:-}
+    volumes:
+      - ${MEDIA_CONFIG_ROOT:-/srv/docker/media}/recommendarr/config:/config
+    ports:
+      - "8000:8000"
+    networks:
+      - orion_media_net
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_media_net:
+    name: orion_media_net
+    driver: bridge
+  # Backbone network for cross-module communication (Traefik access, etc.)
+  orion_backbone_net:
+    name: orion_backbone_net
+    external: true
+    # Note: This network is created by the gateway module or manually
+    # Services that need reverse proxy access should also join this network

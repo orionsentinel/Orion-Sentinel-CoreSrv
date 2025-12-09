@@ -1,0 +1,131 @@
+# Orion-Sentinel-CoreSrv Gateway Module
+# Traefik + Authelia + Redis for reverse proxy and SSO
+#
+# This module provides:
+#   - Traefik v3: Reverse proxy with automatic HTTPS
+#   - Authelia: Single Sign-On with 2FA support
+#   - Redis: Session storage for Authelia
+#
+# Usage:
+#   ./scripts/orionctl up gateway
+#
+# Direct docker compose:
+#   docker compose -f compose/docker-compose.gateway.yml up -d
+#
+# Integration with other modules:
+#   - Other modules can join orion_backbone_net to get reverse proxy access
+#   - Add Traefik labels to services to expose them via gateway
+#
+# Ports:
+#   80   - HTTP (redirects to HTTPS)
+#   443  - HTTPS
+#   8080 - Traefik dashboard (internal only)
+
+services:
+  ############################
+  # TRAEFIK: Reverse Proxy
+  ############################
+
+  traefik:
+    image: traefik:v3.2
+    container_name: orion_traefik
+    restart: unless-stopped
+    command:
+      - --configFile=/etc/traefik/traefik.yml
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${GATEWAY_CONFIG_ROOT:-/srv/docker/gateway}/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ${GATEWAY_CONFIG_ROOT:-/srv/docker/gateway}/traefik/dynamic:/etc/traefik/dynamic:ro
+      - ${GATEWAY_CONFIG_ROOT:-/srv/docker/gateway}/traefik/acme:/acme
+    networks:
+      - orion_gateway_net
+      - orion_backbone_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:-local}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+    healthcheck:
+      test: ["CMD-SHELL", "traefik healthcheck --ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  ############################
+  # AUTHELIA: SSO
+  ############################
+
+  authelia:
+    image: authelia/authelia:4.38.17
+    container_name: orion_authelia
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      # Secrets (MUST be changed in env/.env.gateway)
+      - AUTHELIA_JWT_SECRET=${AUTHELIA_JWT_SECRET:-changeme}
+      - AUTHELIA_SESSION_SECRET=${AUTHELIA_SESSION_SECRET:-changeme}
+      - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY:-changeme}
+    volumes:
+      - ${GATEWAY_CONFIG_ROOT:-/srv/docker/gateway}/authelia:/config
+    networks:
+      - orion_gateway_net
+      - orion_backbone_net
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9091/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.authelia.rule=Host(`auth.${DOMAIN:-local}`)"
+      - "traefik.http.routers.authelia.entrypoints=websecure"
+      - "traefik.http.routers.authelia.tls=true"
+      - "traefik.http.routers.authelia.middlewares=rate-limit-auth@file"
+      - "traefik.http.services.authelia.loadbalancer.server.port=9091"
+
+  ############################
+  # REDIS: Session Storage
+  ############################
+
+  redis:
+    image: redis:7-alpine
+    container_name: orion_redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - ${GATEWAY_CONFIG_ROOT:-/srv/docker/gateway}/redis:/data
+    networks:
+      - orion_gateway_net
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_gateway_net:
+    name: orion_gateway_net
+    driver: bridge
+  # Backbone network for cross-module communication
+  # Other modules can attach to this to get reverse proxy access
+  orion_backbone_net:
+    name: orion_backbone_net
+    driver: bridge
