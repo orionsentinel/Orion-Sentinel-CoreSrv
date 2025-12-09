@@ -145,12 +145,12 @@ module_up() {
     local env_file
     env_file=$(get_env_file "$module")
     
-    # Build the docker compose command
-    local cmd="docker compose -f $compose_file"
+    # Build the docker compose command using array
+    local -a cmd_args=("docker" "compose" "-f" "$compose_file")
     
     # Add env file if it exists
     if [ -f "$env_file" ]; then
-        cmd="$cmd --env-file $env_file"
+        cmd_args+=("--env-file" "$env_file")
     else
         warn "No env file found at $env_file, using defaults"
     fi
@@ -161,14 +161,14 @@ module_up() {
     fi
     
     if [ -n "$profile" ]; then
-        cmd="$cmd --profile $profile"
+        cmd_args+=("--profile" "$profile")
         info "Starting $module module with profile '$profile'..."
     else
         info "Starting $module module..."
     fi
     
     # Run the command
-    $cmd up -d
+    "${cmd_args[@]}" up -d
     
     success "$module module started"
     
@@ -220,12 +220,12 @@ module_down() {
     
     info "Stopping $module module..."
     
-    local cmd="docker compose -f $compose_file"
+    local -a cmd_args=("docker" "compose" "-f" "$compose_file")
     if [ -f "$env_file" ]; then
-        cmd="$cmd --env-file $env_file"
+        cmd_args+=("--env-file" "$env_file")
     fi
     
-    $cmd down
+    "${cmd_args[@]}" down
     
     success "$module module stopped"
 }
@@ -244,12 +244,12 @@ module_status() {
         
         info "Status for $module module:"
         
-        local cmd="docker compose -f $compose_file"
+        local -a cmd_args=("docker" "compose" "-f" "$compose_file")
         if [ -f "$env_file" ]; then
-            cmd="$cmd --env-file $env_file"
+            cmd_args+=("--env-file" "$env_file")
         fi
         
-        $cmd ps
+        "${cmd_args[@]}" ps
     else
         # Show status for all modules
         info "Module status overview:"
@@ -264,12 +264,12 @@ module_status() {
                 local env_file
                 env_file=$(get_env_file "$mod")
                 
-                local cmd="docker compose -f $compose_file"
+                local -a cmd_args=("docker" "compose" "-f" "$compose_file")
                 if [ -f "$env_file" ]; then
-                    cmd="$cmd --env-file $env_file"
+                    cmd_args+=("--env-file" "$env_file")
                 fi
                 
-                $cmd ps 2>/dev/null || echo "  (no containers running)"
+                "${cmd_args[@]}" ps 2>/dev/null || echo "  (no containers running)"
                 echo ""
             fi
         done
@@ -288,17 +288,17 @@ module_logs() {
     local env_file
     env_file=$(get_env_file "$module")
     
-    local cmd="docker compose -f $compose_file"
+    local -a cmd_args=("docker" "compose" "-f" "$compose_file")
     if [ -f "$env_file" ]; then
-        cmd="$cmd --env-file $env_file"
+        cmd_args+=("--env-file" "$env_file")
     fi
     
     if [ -n "$service" ]; then
         info "Following logs for $service in $module module..."
-        $cmd logs -f "$service"
+        "${cmd_args[@]}" logs -f "$service"
     else
         info "Following logs for $module module..."
-        $cmd logs -f
+        "${cmd_args[@]}" logs -f
     fi
 }
 
@@ -314,18 +314,18 @@ module_restart() {
     local env_file
     env_file=$(get_env_file "$module")
     
-    local cmd="docker compose -f $compose_file"
+    local -a cmd_args=("docker" "compose" "-f" "$compose_file")
     if [ -f "$env_file" ]; then
-        cmd="$cmd --env-file $env_file"
+        cmd_args+=("--env-file" "$env_file")
     fi
     
     if [ -n "$service" ]; then
         info "Restarting $service in $module module..."
-        $cmd restart "$service"
+        "${cmd_args[@]}" restart "$service"
         success "$service restarted"
     else
         info "Restarting $module module..."
-        $cmd restart
+        "${cmd_args[@]}" restart
         success "$module module restarted"
     fi
 }
