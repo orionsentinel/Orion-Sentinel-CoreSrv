@@ -42,6 +42,11 @@ jobs:
         run: |
           docker compose -f compose/docker-compose.homeauto.yml config > /dev/null
           echo "✓ Home automation compose file is valid"
+      
+      - name: Validate extras compose file
+        run: |
+          docker compose -f compose/docker-compose.extras.yml config > /dev/null
+          echo "✓ Extras compose file is valid"
 
   yaml-lint:
     name: YAML Linting

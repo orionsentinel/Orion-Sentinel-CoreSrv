@@ -565,66 +565,164 @@ View in Grafana → Explore → Loki
 
 ## Backup & Restore
 
-### What to Backup
+Orion Sentinel includes comprehensive backup and restore scripts for all critical data.
 
-**Critical:**
-- `.env` file and `env/*.env` files
-- `/srv/orion-sentinel-core/core/` (Traefik certs, Authelia users)
-- Service configs (Sonarr, Radarr, etc.)
-
-**Optional:**
-- Prometheus data (can rebuild)
-- Media files (large, can re-download)
-
-### Backup Script
+### Quick Backup
 
 ```bash
-make backup  # Creates timestamped archive
+# Backup everything (requires sudo)
+sudo ./backup/backup-volumes.sh
+
+# Or use Makefile
+make backup
 ```
 
-Backups saved to `/srv/orion-sentinel-core/backups/`
+Backups are saved to `/srv/backups/orion/YYYYMMDD/` by default.
 
-### Restore
+### What Gets Backed Up
+
+**Core Services** (Highest Priority):
+- Traefik configuration and SSL certificates
+- Authelia user database and configuration
+- Redis session storage
+
+**Media Configurations**:
+- Jellyfin, Sonarr, Radarr, Prowlarr configurations
+- Jellyseerr, qBittorrent, Bazarr settings
+
+**Home Automation**:
+- Home Assistant configuration and database
+- Zigbee2MQTT device pairings
+- Mosquitto MQTT configuration
+- Mealie recipes and meal plans
+
+**Monitoring & Extras**:
+- Grafana dashboards and users
+- Prometheus metrics (optional)
+- Uptime Kuma monitors
+- Homepage dashboard configuration
+- SearXNG search settings
+
+**Note:** Media files (movies/TV shows) are NOT backed up due to size. Only configurations.
+
+### Restore a Service
 
 ```bash
-# Extract backup
-cd /srv/orion-sentinel-core
-tar -xzf backups/backup-YYYY-MM-DD.tar.gz
+# Restore specific service from a backup
+sudo ./backup/restore-volume.sh <volume-name> <backup-date>
 
-# Restart services
-make down
-make up-full
+# Examples:
+sudo ./backup/restore-volume.sh core-traefik 20250109
+sudo ./backup/restore-volume.sh media-jellyfin 20250109
+sudo ./backup/restore-volume.sh homeauto-mealie 20250109
 ```
+
+### Automated Backups
+
+Set up automated daily/weekly backups with cron:
+
+```bash
+# Edit crontab
+sudo crontab -e
+
+# Add daily backup at 2 AM
+0 2 * * * /path/to/Orion-Sentinel-CoreSrv/backup/backup-volumes.sh >> /var/log/orion-backup.log 2>&1
+```
+
+### Full Documentation
+
+For complete backup/restore procedures, disaster recovery, and troubleshooting:
+
+- [backup/README.md](backup/README.md) - Complete backup guide
+- [docs/BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md) - Detailed procedures
 
 ## Updates & Maintenance
+
+### Update Strategy
+
+Orion Sentinel uses **version pinning** for stability. Updates are manual and deliberate.
+
+**Recommended:**
+- Security patches: Apply immediately
+- Minor updates: Monthly review
+- Major updates: Quarterly, with testing
 
 ### Update Docker Images
 
 ```bash
-make pull      # Pull latest images
-make down      # Stop services
-make up-full   # Start with new images
+# 1. Backup first!
+sudo ./backup/backup-volumes.sh
+
+# 2. Pull latest images
+make pull
+
+# 3. Review what changed
+# Edit compose files to new version tags if needed
+
+# 4. Restart with new images
+make down
+make up-full
+
+# 5. Verify everything works
+make health
+make logs
 ```
 
-### Update Repository
+### Update Repository Code
 
 ```bash
 cd ~/Orion-Sentinel-CoreSrv
-git pull
-# Review CHANGELOG for breaking changes
+
+# Backup before updating
+sudo ./backup/backup-volumes.sh
+
+# Pull latest code
+git pull origin main
+
+# Review changes
+git log --oneline -10
+
+# Restart if needed
 make down
 make up-full
 ```
 
 ### Automatic Updates (Optional)
 
-Enable Watchtower in `.env`:
+**Option 1: Watchtower (Automatic, use with caution)**
 
-```bash
-WATCHTOWER_ENABLED=true
+Uncomment the Watchtower service in `compose/docker-compose.extras.yml` to enable automatic updates.
+
+**⚠️ WARNING:** Can apply breaking changes automatically!
+
+**Option 2: DIUN (Notifications only, recommended)**
+
+Get notified of updates but apply manually. See [docs/UPDATE.md](docs/UPDATE.md) for setup.
+
+**Option 3: Manual monthly checks**
+
+Set a calendar reminder to check for updates monthly.
+
+### Version Pinning
+
+All services use specific version tags (never `latest`):
+
+```yaml
+# Good - pinned version
+jellyfin:
+  image: jellyfin/jellyfin:10.8.13
+
+# Bad - unpredictable
+jellyfin:
+  image: jellyfin/jellyfin:latest  # Don't do this!
 ```
 
-Watchtower automatically updates containers (use with caution!).
+### Complete Update Guide
+
+For detailed update procedures, rollback instructions, and security updates:
+
+- [docs/UPDATE.md](docs/UPDATE.md) - Complete update guide
+- [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md) - Security best practices
 
 ## Advanced Configuration
 
@@ -665,13 +763,30 @@ MEDIA_ROOT=/mnt/nas/media
 
 ## Documentation
 
+### Getting Started
+- **[README.md](README.md)** - This file, quick start guide
+- **[docs/INSTALLATION.md](docs/INSTALLATION.md)** - Complete installation guide
+- **[INSTALL.md](INSTALL.md)** - Legacy installation guide
+
+### Architecture & Planning
 - **[PLAN.md](PLAN.md)** - Architecture & deployment plan
-- **[INSTALL.md](INSTALL.md)** - Detailed installation guide
-- **[docs/SETUP-CoreSrv.md](docs/SETUP-CoreSrv.md)** - Dell OptiPlex setup guide
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - 3-node system architecture
+- **[docs/SETUP-CoreSrv.md](docs/SETUP-CoreSrv.md)** - Dell OptiPlex setup guide
+
+### Operations & Maintenance
+- **[backup/README.md](backup/README.md)** - Backup and restore guide
+- **[docs/UPDATE.md](docs/UPDATE.md)** - Update procedures and version management
+- **[docs/RUNBOOKS.md](docs/RUNBOOKS.md)** - Troubleshooting and operational procedures
+- **[docs/BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md)** - Detailed backup/restore procedures
+
+### Security
 - **[docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md)** - Security best practices
-- **[docs/RUNBOOKS.md](docs/RUNBOOKS.md)** - Operational procedures
+- **[docs/SECRETS.md](docs/SECRETS.md)** - Secrets management
+
+### Additional Resources
 - **[docs/CREDITS.md](docs/CREDITS.md)** - Acknowledgements and licenses
+- **[docs/DEPLOYMENT-GUIDE.md](docs/DEPLOYMENT-GUIDE.md)** - Deployment workflows
+- **[docs/TOPOLOGY.md](docs/TOPOLOGY.md)** - Network topology and design
 
 ## Support & Community
 
