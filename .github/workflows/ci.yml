@@ -11,10 +11,16 @@ on:
       - main
       - develop
 
+# Set minimal permissions for all jobs
+permissions:
+  contents: read
+
 jobs:
   validate-compose:
     name: Validate Docker Compose Files
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
@@ -51,6 +57,8 @@ jobs:
   yaml-lint:
     name: YAML Linting
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
@@ -89,6 +97,8 @@ jobs:
   shellcheck:
     name: Shell Script Linting
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
@@ -105,6 +115,8 @@ jobs:
   smoke-test:
     name: Smoke Test (Optional)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: github.event_name == 'pull_request'
     
     steps:
@@ -183,6 +195,9 @@ jobs:
   security-scan:
     name: Security Scanning
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # Needed to upload SARIF results
     
     steps:
       - name: Checkout code
