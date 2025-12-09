@@ -1,0 +1,220 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+# Set minimal permissions for all jobs
+permissions:
+  contents: read
+
+jobs:
+  validate-compose:
+    name: Validate Docker Compose Files
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Validate media compose file
+        run: |
+          docker compose -f compose/docker-compose.media.yml config > /dev/null
+          echo "✓ Media compose file is valid"
+      
+      - name: Validate gateway compose file
+        run: |
+          docker compose -f compose/docker-compose.gateway.yml config > /dev/null
+          echo "✓ Gateway compose file is valid"
+      
+      - name: Validate observability compose file
+        run: |
+          docker compose -f compose/docker-compose.observability.yml config > /dev/null
+          echo "✓ Observability compose file is valid"
+      
+      - name: Validate homeauto compose file
+        run: |
+          docker compose -f compose/docker-compose.homeauto.yml config > /dev/null
+          echo "✓ Home automation compose file is valid"
+      
+      - name: Validate extras compose file
+        run: |
+          docker compose -f compose/docker-compose.extras.yml config > /dev/null
+          echo "✓ Extras compose file is valid"
+
+  yaml-lint:
+    name: YAML Linting
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install yamllint
+        run: pip install yamllint
+      
+      - name: Create yamllint config
+        run: |
+          cat > .yamllint.yml << 'EOF'
+          ---
+          extends: default
+          rules:
+            line-length:
+              max: 120
+              level: warning
+            comments:
+              min-spaces-from-content: 1
+            indentation:
+              spaces: 2
+              indent-sequences: true
+            truthy:
+              allowed-values: ['true', 'false', 'on', 'off']
+          ignore: |
+            node_modules/
+            .venv/
+            venv/
+          EOF
+      
+      - name: Run yamllint
+        run: |
+          yamllint -c .yamllint.yml .
+        continue-on-error: true
+
+  shellcheck:
+    name: Shell Script Linting
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      
+      - name: Run shellcheck on scripts
+        run: |
+          find scripts -name "*.sh" -type f -exec shellcheck {} +
+        continue-on-error: true
+
+  smoke-test:
+    name: Smoke Test (Optional)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Create dummy .env files
+        run: |
+          # Copy example files for testing
+          cp .env.example .env || echo "No .env.example found"
+          
+          # Set minimal required env vars for testing
+          cat >> .env << 'EOF'
+          PUID=1000
+          PGID=1000
+          TZ=UTC
+          DOMAIN=test.local
+          
+          # Authelia test secrets (exactly 32 characters for testing)
+          AUTHELIA_JWT_SECRET=test_jwt_secret_0123456789abcdef
+          AUTHELIA_SESSION_SECRET=test_session_secret_0123456789abc
+          AUTHELIA_STORAGE_ENCRYPTION_KEY=test_encryption_key_0123456789ab
+          
+          # Test paths
+          CORE_ROOT=/tmp/orion-test/core
+          MEDIA_CONFIG_ROOT=/tmp/orion-test/media/config
+          MEDIA_ROOT=/tmp/orion-test/media/content
+          MONITORING_ROOT=/tmp/orion-test/monitoring
+          HOME_AUTOMATION_ROOT=/tmp/orion-test/home-automation
+          EOF
+          
+          # Create module env files
+          mkdir -p env
+          for env_file in env/.env.*.example; do
+            if [ -f "$env_file" ]; then
+              target="${env_file%.example}"
+              cp "$env_file" "$target"
+            fi
+          done
+      
+      - name: Create test directories
+        run: |
+          mkdir -p /tmp/orion-test/{core,media/{config,content},monitoring,home-automation}
+      
+      - name: Start media stack (basic test)
+        run: |
+          docker compose -f compose/docker-compose.media.yml --profile media-core up -d
+          sleep 30
+        timeout-minutes: 5
+      
+      - name: Check container health
+        run: |
+          docker compose -f compose/docker-compose.media.yml ps
+          
+          # Check if containers are running
+          RUNNING=$(docker compose -f compose/docker-compose.media.yml ps --format json | jq -r '.State' | grep -c "running" || echo "0")
+          echo "Running containers: $RUNNING"
+          
+          if [ "$RUNNING" -gt 0 ]; then
+            echo "✓ Containers started successfully"
+          else
+            echo "✗ No containers are running"
+            docker compose -f compose/docker-compose.media.yml logs
+            exit 1
+          fi
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f compose/docker-compose.media.yml down -v
+          rm -rf /tmp/orion-test
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # Needed to upload SARIF results
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+        continue-on-error: true
+      
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true

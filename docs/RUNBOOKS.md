@@ -700,6 +700,237 @@ tar -czf orion-logs-$(date +%Y%m%d-%H%M%S).tar.gz -C /tmp orion-logs/
 # Share this archive when asking for help
 ```
 
+
+---
+
+## Runbook: Homepage Dashboard Issues
+
+### Symptoms
+- Homepage not loading or showing blank page
+- Services not appearing in dashboard
+- Unable to access at http://localhost:3003
+
+### Diagnosis
+
+```bash
+# Check if Homepage is running
+docker compose -f compose/docker-compose.extras.yml ps homepage
+
+# Check logs
+docker compose -f compose/docker-compose.extras.yml logs homepage --tail 100
+
+# Check config files
+ls -la /srv/orion-sentinel-core/maintenance/homepage/
+```
+
+### Common Causes & Fixes
+
+**1. Configuration Files Missing**
+
+```bash
+# Homepage needs config files
+cd /srv/orion-sentinel-core/maintenance/homepage
+
+# Check for required files
+ls -la settings.yml services.yml widgets.yml bookmarks.yml
+
+# If missing, copy from examples
+cp services.yml.example services.yml
+cp settings.yml.example settings.yml
+cp widgets.yml.example widgets.yml
+cp bookmarks.yml.example bookmarks.yml
+
+# Restart Homepage
+docker compose -f compose/docker-compose.extras.yml restart homepage
+```
+
+**2. Docker Socket Permission Issue**
+
+```bash
+# Homepage needs access to Docker socket
+ls -la /var/run/docker.sock
+
+# Fix permissions if needed
+sudo chmod 666 /var/run/docker.sock
+
+# Restart
+docker compose -f compose/docker-compose.extras.yml restart homepage
+```
+
+**3. Service Not Detected**
+
+```bash
+# Homepage discovers services via Docker labels
+# Check if services have correct labels
+docker inspect <service-name> | grep -A 10 "Labels"
+
+# Verify networks
+docker network inspect orion_backbone_net
+docker network inspect orion_proxy_net
+```
+
+---
+
+## Runbook: Mealie (Recipe Manager) Issues
+
+### Symptoms
+- Cannot access Mealie at http://localhost:9000
+- Login fails or database errors
+- Recipes not saving
+
+### Diagnosis
+
+```bash
+# Check if Mealie is running
+docker compose -f compose/docker-compose.homeauto.yml ps mealie
+
+# Check logs
+docker compose -f compose/docker-compose.homeauto.yml logs mealie --tail 100
+
+# Check database
+docker compose -f compose/docker-compose.homeauto.yml exec mealie ls -la /app/data
+```
+
+### Common Causes & Fixes
+
+**1. Database Not Initialized**
+
+```bash
+# First time setup requires database initialization
+# Check if database exists
+ls -la /srv/orion-sentinel-core/home-automation/mealie/
+
+# Create directory if missing
+sudo mkdir -p /srv/orion-sentinel-core/home-automation/mealie
+sudo chown -R $USER:$USER /srv/orion-sentinel-core/home-automation/mealie
+
+# Restart to initialize
+docker compose -f compose/docker-compose.homeauto.yml restart mealie
+
+# Wait 30 seconds, then check logs
+sleep 30
+docker compose -f compose/docker-compose.homeauto.yml logs mealie
+```
+
+**2. Permission Issues**
+
+```bash
+# Check ownership
+ls -la /srv/orion-sentinel-core/home-automation/mealie/
+
+# Fix permissions
+sudo chown -R $PUID:$PGID /srv/orion-sentinel-core/home-automation/mealie
+
+# Restart
+docker compose -f compose/docker-compose.homeauto.yml restart mealie
+```
+
+**3. Cannot Create Admin User**
+
+```bash
+# Reset and create new admin
+docker compose -f compose/docker-compose.homeauto.yml down mealie
+
+# Remove database (WARNING: deletes all data!)
+# Backup first if you have data
+sudo mv /srv/orion-sentinel-core/home-automation/mealie/mealie.db \
+       /srv/orion-sentinel-core/home-automation/mealie/mealie.db.backup
+
+# Restart
+docker compose -f compose/docker-compose.homeauto.yml up -d mealie
+
+# Access web UI and create admin user
+```
+
+---
+
+## Runbook: SearXNG (Search Engine) Issues
+
+### Symptoms
+- SearXNG not accessible at http://localhost:8888
+- Search results not loading
+- Some search engines not working
+
+### Diagnosis
+
+```bash
+# Check if SearXNG is running
+docker compose -f compose/docker-compose.extras.yml ps searxng
+
+# Check logs
+docker compose -f compose/docker-compose.extras.yml logs searxng --tail 100
+
+# Check configuration
+docker compose -f compose/docker-compose.extras.yml exec searxng cat /etc/searxng/settings.yml
+```
+
+### Common Causes & Fixes
+
+**1. Settings File Issues**
+
+```bash
+# SearXNG needs valid settings.yml
+cd /srv/orion-sentinel-core/search/searxng
+
+# Check if settings exists
+ls -la settings.yml
+
+# If corrupted or missing, use default
+docker compose -f compose/docker-compose.extras.yml down searxng
+rm settings.yml
+# SearXNG will generate default on next start
+docker compose -f compose/docker-compose.extras.yml up -d searxng
+```
+
+**2. Network/DNS Issues**
+
+```bash
+# SearXNG needs internet access to search
+# Test from container
+docker compose -f compose/docker-compose.extras.yml exec searxng ping -c 3 google.com
+
+# If ping fails, check Docker DNS
+docker compose -f compose/docker-compose.extras.yml exec searxng cat /etc/resolv.conf
+
+# Restart with DNS override
+docker compose -f compose/docker-compose.extras.yml down searxng
+# Add to compose file under searxng service:
+#   dns:
+#     - 8.8.8.8
+#     - 8.8.4.4
+docker compose -f compose/docker-compose.extras.yml up -d searxng
+```
+
+**3. Rate Limiting / Blocked by Search Engines**
+
+```bash
+# Some search engines may block or rate-limit
+# Check logs for specific errors
+docker compose -f compose/docker-compose.extras.yml logs searxng | grep -i "error\|block\|limit"
+
+# Edit settings to disable problematic engines
+nano /srv/orion-sentinel-core/search/searxng/settings.yml
+# Under 'engines:', disable failing ones
+
+# Restart
+docker compose -f compose/docker-compose.extras.yml restart searxng
+```
+
+**4. Permission Issues**
+
+```bash
+# Check directory permissions
+ls -la /srv/orion-sentinel-core/search/searxng/
+
+# Fix ownership
+sudo chown -R $PUID:$PGID /srv/orion-sentinel-core/search/searxng
+
+# Restart
+docker compose -f compose/docker-compose.extras.yml restart searxng
+```
+
+---
+
 ### Useful Commands Reference
 
 ```bash
@@ -708,6 +939,12 @@ tar -czf orion-logs-$(date +%Y%m%d-%H%M%S).tar.gz -C /tmp orion-logs/
 ./scripts/orionctl.sh health
 ./scripts/orionctl.sh logs [service]
 ./scripts/orionctl.sh restart [service]
+
+# Makefile commands (recommended)
+make status              # Check all services
+make logs SVC=homepage   # Check specific service logs
+make restart SVC=mealie  # Restart specific service
+make health              # Health check all services
 
 # Docker
 docker compose ps
@@ -724,7 +961,7 @@ netstat -tulpn
 
 ---
 
-**Last Updated:** 2025-11-23  
+**Last Updated:** 2025-01-09  
 **Maintained By:** Orion Home Lab Team
 
 **Remember:** When in doubt, check the logs first!

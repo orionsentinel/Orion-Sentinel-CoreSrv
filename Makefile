@@ -45,8 +45,9 @@ help: ## Show this help message
 	@echo "  make up-monitoring  - Alias for up-observability"
 	@echo "  make up-home-automation - Start home automation (Home Assistant, etc.)"
 	@echo "  make up-homeauto    - Alias for up-home-automation"
-	@echo "  make up-extras      - Start additional services (Homepage, etc.)"
+	@echo "  make up-extras      - Start additional services (Homepage, SearXNG)"
 	@echo "  make up-full        - Start ALL services"
+	@echo "  make up-all         - Alias for up-full (standardized command)"
 	@echo ""
 	@echo "Management Commands:"
 	@echo "  make down           - Stop all services"
@@ -147,11 +148,20 @@ up-homeauto: ## Start home automation (Home Assistant, Zigbee2MQTT, MQTT, Mealie
 	@docker compose -f compose/docker-compose.homeauto.yml up -d
 	@echo "✓ Home automation stack started"
 
-up-extras: ## Start additional services (Homepage, Watchtower, etc.)
+up-extras: ## Start additional services (Homepage, SearXNG, etc.)
 	@echo "🔧 Starting additional services..."
-	@echo "⚠️  Extras compose not yet implemented"
+	@if [ ! -f env/.env.extras ]; then \
+		echo "ℹ️  env/.env.extras not found. Using .env defaults..."; \
+	fi
+	@docker compose -f compose/docker-compose.extras.yml up -d
+	@echo "✓ Additional services started"
+	@echo ""
+	@echo "Access your services:"
+	@echo "  Homepage:  http://localhost:3003 or https://homepage.${DOMAIN:-local}"
+	@echo "  SearXNG:   http://localhost:8888 or https://search.${DOMAIN:-local}"
 
-up-full: ## Start ALL services (media + gateway + monitoring + home automation)
+up-full: up-all ## Start ALL services (media + gateway + monitoring + home automation)
+up-all: ## Alias for up-full (standardized command)
 	@echo "🚀 Starting full stack..."
 	@$(MAKE) up-media
 	@$(MAKE) up-gateway
@@ -173,6 +183,7 @@ down: ## Stop all services
 	@docker compose -f compose/docker-compose.gateway.yml down || true
 	@docker compose -f compose/docker-compose.observability.yml down || true
 	@docker compose -f compose/docker-compose.homeauto.yml down || true
+	@docker compose -f compose/docker-compose.extras.yml down || true
 	@echo "✓ All services stopped"
 
 stop: ## Stop all services (keep containers)
@@ -181,6 +192,7 @@ stop: ## Stop all services (keep containers)
 	@docker compose -f compose/docker-compose.gateway.yml stop || true
 	@docker compose -f compose/docker-compose.observability.yml stop || true
 	@docker compose -f compose/docker-compose.homeauto.yml stop || true
+	@docker compose -f compose/docker-compose.extras.yml stop || true
 	@echo "✓ All services stopped"
 
 restart: ## Restart services (optionally specify SVC=servicename)
@@ -190,6 +202,7 @@ ifdef SVC
 	 docker compose -f compose/docker-compose.gateway.yml restart $(SVC) 2>/dev/null || \
 	 docker compose -f compose/docker-compose.observability.yml restart $(SVC) 2>/dev/null || \
 	 docker compose -f compose/docker-compose.homeauto.yml restart $(SVC) 2>/dev/null || \
+	 docker compose -f compose/docker-compose.extras.yml restart $(SVC) 2>/dev/null || \
 	 echo "❌ Service $(SVC) not found"
 	@echo "✓ $(SVC) restarted"
 else
@@ -198,6 +211,7 @@ else
 	@docker compose -f compose/docker-compose.gateway.yml restart || true
 	@docker compose -f compose/docker-compose.observability.yml restart || true
 	@docker compose -f compose/docker-compose.homeauto.yml restart || true
+	@docker compose -f compose/docker-compose.extras.yml restart || true
 	@echo "✓ All services restarted"
 endif
 
@@ -208,6 +222,7 @@ ifdef SVC
 	 docker compose -f compose/docker-compose.gateway.yml logs -f $(SVC) 2>/dev/null || \
 	 docker compose -f compose/docker-compose.observability.yml logs -f $(SVC) 2>/dev/null || \
 	 docker compose -f compose/docker-compose.homeauto.yml logs -f $(SVC) 2>/dev/null || \
+	 docker compose -f compose/docker-compose.extras.yml logs -f $(SVC) 2>/dev/null || \
 	 echo "❌ Service $(SVC) not found"
 else
 	@echo "📋 Following all logs (Ctrl+C to stop)..."
@@ -215,6 +230,7 @@ else
 	 docker compose -f compose/docker-compose.gateway.yml logs -f 2>/dev/null & \
 	 docker compose -f compose/docker-compose.observability.yml logs -f 2>/dev/null & \
 	 docker compose -f compose/docker-compose.homeauto.yml logs -f 2>/dev/null & \
+	 docker compose -f compose/docker-compose.extras.yml logs -f 2>/dev/null & \
 	 wait
 endif
 
@@ -226,6 +242,7 @@ ps: ## List running containers
 	@docker compose -f compose/docker-compose.gateway.yml ps 2>/dev/null || true
 	@docker compose -f compose/docker-compose.observability.yml ps 2>/dev/null || true
 	@docker compose -f compose/docker-compose.homeauto.yml ps 2>/dev/null || true
+	@docker compose -f compose/docker-compose.extras.yml ps 2>/dev/null || true
 
 health: ## Check service health
 	@echo "🏥 Checking service health..."
@@ -244,11 +261,14 @@ pull: ## Pull latest images
 	@docker compose -f compose/docker-compose.gateway.yml pull
 	@docker compose -f compose/docker-compose.observability.yml pull
 	@docker compose -f compose/docker-compose.homeauto.yml pull
+	@docker compose -f compose/docker-compose.extras.yml pull
 	@echo "✓ Images updated"
 
 backup: ## Run backup script
 	@echo "💾 Running backup..."
-	@if [ -f scripts/backup.sh ]; then \
+	@if [ -f backup/backup-volumes.sh ]; then \
+		sudo ./backup/backup-volumes.sh; \
+	elif [ -f scripts/backup.sh ]; then \
 		./scripts/backup.sh; \
 	else \
 		echo "❌ Backup script not found"; \
@@ -260,6 +280,7 @@ clean: ## Remove stopped containers and unused images
 	@docker compose -f compose/docker-compose.gateway.yml down --remove-orphans 2>/dev/null || true
 	@docker compose -f compose/docker-compose.observability.yml down --remove-orphans 2>/dev/null || true
 	@docker compose -f compose/docker-compose.homeauto.yml down --remove-orphans 2>/dev/null || true
+	@docker compose -f compose/docker-compose.extras.yml down --remove-orphans 2>/dev/null || true
 	@docker system prune -f
 	@echo "✓ Cleanup complete"
 
