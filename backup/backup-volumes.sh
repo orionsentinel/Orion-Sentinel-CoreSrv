@@ -195,7 +195,10 @@ cleanup_old_backups() {
     
     local mode_path="${BACKUP_ROOT}/${BACKUP_MODE}"
     if [ -d "$mode_path" ]; then
-        find "$mode_path" -type d -name "20*" -mtime +$retention_days -exec rm -rf {} + 2>/dev/null || true
+        # Find and remove old backup directories safely
+        find "$mode_path" -type d -name "20*" -mtime +$retention_days 2>/dev/null | while read -r dir; do
+            rm -rf "$dir" 2>/dev/null || true
+        done
         success "Old backups cleaned up"
     fi
 }

@@ -106,7 +106,6 @@ jobs:
             core/**/*.yml \
             maintenance/**/*.yml \
             search/**/*.yml \
-            home-automation/**/*.conf.example \
             agents/**/*.yml || exit 0
 
   lint-shell:
