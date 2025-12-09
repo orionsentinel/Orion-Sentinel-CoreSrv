@@ -684,10 +684,14 @@ git log --oneline -10
 
 # Restart if needed
 make down
-make up-full
+make up-all
 ```
 
-### Automatic Updates (Optional)
+### Automated Updates
+
+**Option 1: Watchtower (Recommended for home labs)**
+
+Automatically updates running containers when new images are available.
 
 **Option 1: Watchtower (Automatic, use with caution)**
 

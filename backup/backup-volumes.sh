@@ -26,6 +26,183 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+
+Usage:
+  sudo ./backup/backup-volumes.sh [MODE] [SERVICE]
+
+Modes:
+  daily       Perform daily backup (keeps last ${DAILY_RETENTION} days)
+  weekly      Perform weekly backup (keeps last ${WEEKLY_RETENTION} days)
+  monthly     Perform monthly backup (keeps last ${MONTHLY_RETENTION} days)
+  manual      Manual backup (default, no auto-cleanup)
+
+Services:
+  all         Backup all critical volumes (default)
+  <name>      Backup specific service volume
+
+Available services:
+$(for service in "${!CRITICAL_VOLUMES[@]}"; do echo "  - $service"; done | sort)
+
+Examples:
+  sudo ./backup/backup-volumes.sh                    # Manual backup of all
+  sudo ./backup/backup-volumes.sh weekly             # Weekly backup of all
+  sudo ./backup/backup-volumes.sh daily jellyfin     # Daily backup of Jellyfin only
+  sudo ./backup/backup-volumes.sh manual traefik     # Manual backup of Traefik
+
+Environment Variables:
+  BACKUP_ROOT               Backup destination (default: /srv/backups/orion)
+  MEDIA_CONFIG_ROOT         Media config path (default: /srv/docker/media)
+  GATEWAY_CONFIG_ROOT       Gateway config path (default: /srv/orion-sentinel-core/core)
+  MONITORING_ROOT           Monitoring path (default: /srv/orion-sentinel-core/monitoring)
+  HOME_AUTOMATION_ROOT      Home automation path (default: /srv/orion-sentinel-core/home-automation)
+
+Notes:
+  - This script requires root/sudo for consistent backups
+  - Backups are stored in: ${BACKUP_ROOT}/${BACKUP_MODE}/YYYY-MM-DD/
+  - Use cron for automated backups (see README for examples)
+
+EOF
+}
+
+check_requirements() {
+    # Check if running as root
+    if [ "$EUID" -ne 0 ]; then
+        error "This script must be run as root or with sudo for consistent backups"
+    fi
+    
+    # Check if tar is available
+    if ! command -v tar &> /dev/null; then
+        error "tar command not found. Please install tar."
+    fi
+}
+
+create_backup_dirs() {
+    local backup_path="${BACKUP_ROOT}/${BACKUP_MODE}/${DATE_DIR}"
+    mkdir -p "$backup_path"
+    info "Backup directory: $backup_path"
+}
+
+backup_volume() {
+    local service=$1
+    local volume_info=${CRITICAL_VOLUMES[$service]}
+    local volume_path=$(echo "$volume_info" | cut -d'|' -f1)
+    local description=$(echo "$volume_info" | cut -d'|' -f2)
+    
+    local backup_path="${BACKUP_ROOT}/${BACKUP_MODE}/${DATE_DIR}"
+    local archive_name="${service}-${TIMESTAMP}.tar.gz"
+    local archive_path="${backup_path}/${archive_name}"
+    
+    info "Backing up: $service"
+    info "  Source: $volume_path"
+    info "  Description: $description"
+    
+    # Check if source exists
+    if [ ! -d "$volume_path" ] && [ ! -f "$volume_path" ]; then
+        warn "  Source path does not exist, skipping: $volume_path"
+        return 0
+    fi
+    
+    # Create tar archive
+    local parent_dir=$(dirname "$volume_path")
+    local target_name=$(basename "$volume_path")
+    
+    if ! tar -czf "$archive_path" -C "$parent_dir" "$target_name"; then
+        error "  Failed to create backup archive for $service"
+    fi
+    
+    local size=$(du -h "$archive_path" | cut -f1)
+    success "  Backed up $service ($size): $archive_name"
+    
+    # Create metadata file
+    cat > "${archive_path}.info" << EOF
+Service: $service
+Description: $description
+Source: $volume_path
+Backup Date: $(date -Iseconds)
+Backup Mode: $BACKUP_MODE
+Archive Size: $size
+Hostname: $(hostname)
+EOF
+}
+
+cleanup_old_backups() {
+    local retention_days
+    
+    case "$BACKUP_MODE" in
+        daily)   retention_days=$DAILY_RETENTION ;;
+        weekly)  retention_days=$WEEKLY_RETENTION ;;
+        monthly) retention_days=$MONTHLY_RETENTION ;;
+        *)       info "Manual backup - no auto-cleanup"; return 0 ;;
+    esac
+    
+    info "Cleaning up backups older than $retention_days days for mode: $BACKUP_MODE"
+    
+    local mode_path="${BACKUP_ROOT}/${BACKUP_MODE}"
+    if [ -d "$mode_path" ]; then
+        # Find and remove old backup directories safely
+        find "$mode_path" -type d -name "20*" -mtime +$retention_days 2>/dev/null | while read -r dir; do
+            if ! rm -rf "$dir" 2>/dev/null; then
+                warn "Failed to remove old backup: $dir"
+            fi
+        done
+        success "Old backups cleaned up"
+    fi
+}
+
+create_manifest() {
+    local backup_path="${BACKUP_ROOT}/${BACKUP_MODE}/${DATE_DIR}"
+    local manifest="${backup_path}/MANIFEST.txt"
+    
+    cat > "$manifest" << EOF
+Orion-Sentinel-CoreSrv Volume Backup
+
+Backup Created: $(date -Iseconds)
+Backup Mode: $BACKUP_MODE
+Date: $DATE_DIR
+Hostname: $(hostname)
+
+Backed Up Volumes:
+------------------
+EOF
+    
+    # List all backup files
+    for file in "${backup_path}"/*.tar.gz; do
+        if [ -f "$file" ]; then
+            local name=$(basename "$file")
+            local size=$(du -h "$file" | cut -f1)
+            echo "  - $name ($size)" >> "$manifest"
+        fi
+    done
+    
+    cat >> "$manifest" << EOF
+
+Restore Instructions:
+---------------------
+To restore a specific service:
+  sudo ./backup/restore-volume.sh $BACKUP_MODE $DATE_DIR <service-name>
+
+Examples:
+  sudo ./backup/restore-volume.sh $BACKUP_MODE $DATE_DIR jellyfin
+  sudo ./backup/restore-volume.sh $BACKUP_MODE $DATE_DIR traefik
+
+For complete restore documentation, see:
+  docs/BACKUP-RESTORE.md
+
+IMPORTANT:
+----------
+- Stop the service before restoring: docker compose stop <service>
+- Verify backup integrity before restoring
+- Test restores periodically to ensure backups are valid
+- Store copies offsite for disaster recovery
+
+EOF
+    
+    success "Manifest created: $manifest"
+}
+
+# ============================================================================
+# Main
+# ============================================================================
 info() {
     echo -e "${BLUE}[INFO]${NC} $*"
 }
@@ -185,7 +362,6 @@ create_backup_manifest() {
     
     cat > "${manifest}" << EOF
 Orion Sentinel CoreSrv Backup Manifest
-=======================================
 
 Backup Timestamp: ${TIMESTAMP}
 Backup Location:  ${BACKUP_DIR}

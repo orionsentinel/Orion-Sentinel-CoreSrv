@@ -96,6 +96,11 @@ id_rsa*
 *.zip
 *.7z
 
+# Backup output directories (actual backup artifacts, not scripts)
+backups/
+**/backup-*
+*.backup-*/
+
 # =============================================================================
 # TEMPORARY FILES
 # =============================================================================

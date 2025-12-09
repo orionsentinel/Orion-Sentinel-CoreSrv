@@ -37,6 +37,72 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+
+Usage:
+  sudo ./backup/restore-volume.sh <backup-mode> <date> <service> [options]
+
+Arguments:
+  backup-mode     Backup mode to restore from (daily, weekly, monthly, manual)
+  date            Date of backup in YYYY-MM-DD format
+  service         Service name to restore
+
+Options:
+  --force         Skip confirmation prompt
+  --keep-backup   Don't delete old volume, rename to .backup-TIMESTAMP
+
+Available services:
+$(for service in "${!CRITICAL_VOLUMES[@]}"; do echo "  - $service"; done | sort)
+
+Examples:
+  # Restore Jellyfin from weekly backup
+  sudo ./backup/restore-volume.sh weekly 2024-12-01 jellyfin
+
+  # Restore Traefik from daily backup without confirmation
+  sudo ./backup/restore-volume.sh daily 2024-12-09 traefik --force
+
+  # Restore Home Assistant keeping old data as backup
+  sudo ./backup/restore-volume.sh manual 2024-12-09 homeassistant --keep-backup
+
+Restore Process:
+  1. Verify backup exists and is readable
+  2. Check if service is running (will warn if it is)
+  3. Create backup of existing volume (unless --force)
+  4. Extract backup archive to destination
+  5. Verify restore was successful
+
+IMPORTANT:
+  - Always stop the service before restoring:
+    docker compose -f compose/docker-compose.<module>.yml stop <service>
+  
+  - Test restored service before removing backup:
+    docker compose -f compose/docker-compose.<module>.yml start <service>
+  
+  - Keep offsite backups for disaster recovery
+
+Environment Variables:
+  BACKUP_ROOT               Backup location (default: /srv/backups/orion)
+  MEDIA_CONFIG_ROOT         Media config path (default: /srv/docker/media)
+  GATEWAY_CONFIG_ROOT       Gateway config path (default: /srv/orion-sentinel-core/core)
+  MONITORING_ROOT           Monitoring path (default: /srv/orion-sentinel-core/monitoring)
+  HOME_AUTOMATION_ROOT      Home automation path (default: /srv/orion-sentinel-core/home-automation)
+
+EOF
+}
+
+check_requirements() {
+    # Check if running as root
+    if [ "$EUID" -ne 0 ]; then
+        error "This script must be run as root or with sudo"
+    fi
+    
+    # Check if tar is available
+    if ! command -v tar &> /dev/null; then
+        error "tar command not found. Please install tar."
+    fi
+    
+    # Check if docker is available
+    if ! command -v docker &> /dev/null; then
+        warn "docker command not found. Cannot check if service is running."
 info() {
     echo -e "${BLUE}[INFO]${NC} $*"
 }

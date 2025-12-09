@@ -16,7 +16,7 @@
 #
 # ============================================================================
 
-.PHONY: help setup validate up-core up-media up-traefik up-gateway up-observability up-monitoring up-home-automation up-homeauto up-extras up-full down stop restart logs status ps health pull clean backup
+.PHONY: help setup validate up-core up-media up-traefik up-gateway up-observability up-monitoring up-home-automation up-homeauto up-extras up-all up-full down stop restart logs status ps health pull clean backup
 
 # Default target
 .DEFAULT_GOAL := help
