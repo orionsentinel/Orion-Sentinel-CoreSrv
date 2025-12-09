@@ -961,7 +961,7 @@ netstat -tulpn
 
 ---
 
-**Last Updated:** 2025-12-09  
+**Last Updated:** 2025-01-09  
 **Maintained By:** Orion Home Lab Team
 
 **Remember:** When in doubt, check the logs first!

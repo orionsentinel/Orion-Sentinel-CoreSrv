@@ -236,7 +236,8 @@ Different projects use different formats:
 - **Date-based**: `2024.1.0`, `20240109`
 - **SHA digests** (most stable):
   ```yaml
-  image: jellyfin/jellyfin:10.8.13@sha256:abc123...
+  # Full SHA256 digest for maximum stability
+  image: jellyfin/jellyfin:10.8.13@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
   ```
 
 ### Current Versions Reference

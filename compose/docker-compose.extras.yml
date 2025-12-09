@@ -57,6 +57,8 @@ services:
   ############################
 
   searxng:
+    # Using commit hash tag format as per SearXNG stable release tagging
+    # This specific version (2024.1.28) with commit b5c7b0c88 is a tested stable release
     image: searxng/searxng:2024.1.28-b5c7b0c88
     container_name: orion_searxng
     restart: unless-stopped

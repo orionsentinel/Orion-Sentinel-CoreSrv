@@ -126,10 +126,10 @@ jobs:
           TZ=UTC
           DOMAIN=test.local
           
-          # Authelia test secrets (not for production!)
-          AUTHELIA_JWT_SECRET=test_jwt_secret_32_characters_long
-          AUTHELIA_SESSION_SECRET=test_session_secret_32_chars_long
-          AUTHELIA_STORAGE_ENCRYPTION_KEY=test_encryption_key_32_chars_here
+          # Authelia test secrets (exactly 32 characters for testing)
+          AUTHELIA_JWT_SECRET=test_jwt_secret_0123456789abcdef
+          AUTHELIA_SESSION_SECRET=test_session_secret_0123456789abc
+          AUTHELIA_STORAGE_ENCRYPTION_KEY=test_encryption_key_0123456789ab
           
           # Test paths
           CORE_ROOT=/tmp/orion-test/core
