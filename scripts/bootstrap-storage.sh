@@ -369,8 +369,8 @@ print_header "Step 7: Setting Ownership"
 
 info "Setting ownership to $ORION_UID:$ORION_GID..."
 
-# Set ownership on all created directories
-chown -R "$ORION_UID:$ORION_GID" "$ORION_INTERNAL_ROOT"
+# Set ownership on all created directories (may need root for external mounts)
+chown -R "$ORION_UID:$ORION_GID" "$ORION_INTERNAL_ROOT" 2>/dev/null || warn "Could not set ownership on internal root (may need root)"
 chown -R "$ORION_UID:$ORION_GID" "$ORION_EXTERNAL_PRIMARY" 2>/dev/null || warn "Could not set ownership on external_primary (may need root)"
 chown -R "$ORION_UID:$ORION_GID" "$ORION_EXTERNAL_REPLICA" 2>/dev/null || warn "Could not set ownership on external_replica (may need root)"
 

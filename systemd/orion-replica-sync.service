@@ -16,8 +16,9 @@ IOSchedulingPriority=7
 # Environment file for configuration
 EnvironmentFile=-/opt/orion/Orion-Sentinel-CoreSrv/.env
 
-# Timeouts for large syncs
-TimeoutStartSec=86400
+# Timeout for large syncs (8 hours - large media libraries may take significant time)
+# For typical use, 4TB sync over USB 3.0 can take 2-6 hours depending on file count
+TimeoutStartSec=28800
 
 # Logging
 StandardOutput=journal

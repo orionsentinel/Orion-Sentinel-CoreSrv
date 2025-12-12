@@ -33,8 +33,8 @@ LOG_DIR="${ORION_BACKUPS_DIR}/replication"
 LOG_FILE="${LOG_DIR}/replica-sync.log"
 TIMESTAMP=$(date +%Y-%m-%d_%H:%M:%S)
 
-# Rsync options
-RSYNC_OPTS="-aHAX --numeric-ids --info=stats2"
+# Rsync options (use array for proper handling of spaces in patterns)
+RSYNC_OPTS=(-aHAX --numeric-ids --info=stats2)
 USE_DELETE=true
 DRY_RUN=false
 EXCLUDES=()
@@ -108,7 +108,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run)
             DRY_RUN=true
-            RSYNC_OPTS="${RSYNC_OPTS} --dry-run"
+            RSYNC_OPTS+=(--dry-run)
             shift
             ;;
         --no-delete)
@@ -169,13 +169,13 @@ done
 
 # Add --delete if not disabled
 if [[ "$USE_DELETE" == "true" ]]; then
-    RSYNC_OPTS="${RSYNC_OPTS} --delete"
+    RSYNC_OPTS+=(--delete)
 fi
 
 # Add excludes
 for pattern in "${EXCLUDES[@]:-}"; do
     if [[ -n "$pattern" ]]; then
-        RSYNC_OPTS="${RSYNC_OPTS} --exclude=$pattern"
+        RSYNC_OPTS+=("--exclude=$pattern")
     fi
 done
 
@@ -206,7 +206,7 @@ success "Log directory ready: $LOG_DIR"
 
 log "=========================================="
 log "Starting replication: $ORION_EXTERNAL_PRIMARY -> $ORION_EXTERNAL_REPLICA"
-log "Options: $RSYNC_OPTS"
+log "Options: ${RSYNC_OPTS[*]}"
 
 # ============================================================================
 # STEP 2: Verify Mounts (CRITICAL SAFETY CHECK)
@@ -263,8 +263,7 @@ info "This may take a while depending on data size..."
 echo ""
 
 # Run rsync with tee to both stdout and log file
-# shellcheck disable=SC2086
-if rsync $RSYNC_OPTS "${ORION_EXTERNAL_PRIMARY}/" "${ORION_EXTERNAL_REPLICA}/" 2>&1 | tee -a "$LOG_FILE"; then
+if rsync "${RSYNC_OPTS[@]}" "${ORION_EXTERNAL_PRIMARY}/" "${ORION_EXTERNAL_REPLICA}/" 2>&1 | tee -a "$LOG_FILE"; then
     RSYNC_EXIT=0
 else
     RSYNC_EXIT=$?
