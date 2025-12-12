@@ -1,0 +1,60 @@
+# Homepage Dashboard Services Configuration
+# Orion-Sentinel-CoreSrv Dell Deployment
+#
+# Copy to your homepage config directory and customize
+
+- Infrastructure:
+    - Traefik:
+        icon: traefik.svg
+        href: https://traefik.orion.lan
+        description: Reverse Proxy
+        server: my-docker
+        container: orion_traefik
+
+- Monitoring:
+    - Grafana:
+        icon: grafana.svg
+        href: https://grafana.orion.lan
+        description: Dashboards & Metrics
+        server: my-docker
+        container: orion_grafana
+    - Prometheus:
+        icon: prometheus.svg
+        href: https://prometheus.orion.lan
+        description: Metrics Collection
+        server: my-docker
+        container: orion_prometheus
+    - Uptime Kuma:
+        icon: uptime-kuma.svg
+        href: https://uptime.orion.lan
+        description: Status Monitor
+        server: my-docker
+        container: orion_uptime_kuma
+
+- Home Automation:
+    - Home Assistant:
+        icon: home-assistant.svg
+        href: https://home.orion.lan
+        description: Smart Home Hub
+        server: my-docker
+        container: orion_homeassistant
+    - Zigbee2MQTT:
+        icon: zigbee2mqtt.svg
+        href: https://zigbee.orion.lan
+        description: Zigbee Gateway
+        server: my-docker
+        container: orion_zigbee2mqtt
+
+- Applications:
+    - Mealie:
+        icon: mealie.svg
+        href: https://mealie.orion.lan
+        description: Recipe Management
+        server: my-docker
+        container: orion_mealie
+    - DSMR Reader:
+        icon: dsmr-reader.svg
+        href: https://dsmr.orion.lan
+        description: Energy Monitor
+        server: my-docker
+        container: orion_dsmr

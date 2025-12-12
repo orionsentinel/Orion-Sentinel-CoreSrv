@@ -1,0 +1,182 @@
+# Orion-Sentinel-CoreSrv Apps Stack
+# Mealie (+ Postgres) + DSMR Reader (+ Postgres)
+#
+# Usage:
+#   ./scripts/orionctl up apps
+#
+# Exposed at:
+#   - mealie.orion.lan
+#   - dsmr.orion.lan
+
+services:
+  ############################
+  # MEALIE DATABASE (Postgres)
+  ############################
+
+  mealie-db:
+    image: postgres:15-alpine
+    container_name: orion_mealie_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${MEALIE_DB_NAME:-mealie}
+      - POSTGRES_USER=${MEALIE_DB_USER:-mealie}
+      - POSTGRES_PASSWORD=${MEALIE_DB_PASSWORD:-mealie-secure-password}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/db/mealie:/var/lib/postgresql/data
+    networks:
+      - orion_apps
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MEALIE_DB_USER:-mealie} -d ${MEALIE_DB_NAME:-mealie}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # MEALIE: Recipe Management
+  ############################
+
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:v1.12.0
+    container_name: orion_mealie
+    restart: unless-stopped
+    depends_on:
+      mealie-db:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - PUID=${ORION_UID:-1000}
+      - PGID=${ORION_GID:-1000}
+      - BASE_URL=https://mealie.${LOCAL_DOMAIN:-orion.lan}
+      - ALLOW_SIGNUP=${MEALIE_ALLOW_SIGNUP:-false}
+      - MAX_WORKERS=1
+      - WEB_CONCURRENCY=1
+      - API_DOCS=true
+      # Postgres configuration
+      - DB_ENGINE=postgres
+      - POSTGRES_USER=${MEALIE_DB_USER:-mealie}
+      - POSTGRES_PASSWORD=${MEALIE_DB_PASSWORD:-mealie-secure-password}
+      - POSTGRES_SERVER=mealie-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${MEALIE_DB_NAME:-mealie}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/mealie:/app/data
+    networks:
+      - orion_apps
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/api/app/about"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mealie.rule=Host(`mealie.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.mealie.entrypoints=websecure"
+      - "traefik.http.routers.mealie.tls=true"
+      - "traefik.http.routers.mealie.middlewares=security-headers@file"
+      - "traefik.http.services.mealie.loadbalancer.server.port=9000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # DSMR DATABASE (Postgres)
+  ############################
+
+  dsmr-db:
+    image: postgres:15-alpine
+    container_name: orion_dsmr_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DSMR_DB_NAME:-dsmrreader}
+      - POSTGRES_USER=${DSMR_DB_USER:-dsmrreader}
+      - POSTGRES_PASSWORD=${DSMR_DB_PASSWORD:-dsmr-secure-password}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/db/dsmr:/var/lib/postgresql/data
+    networks:
+      - orion_apps
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DSMR_DB_USER:-dsmrreader} -d ${DSMR_DB_NAME:-dsmrreader}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # DSMR READER: Smart Meter Monitor
+  ############################
+
+  dsmr:
+    image: xirixiz/dsmr-reader-docker:latest
+    container_name: orion_dsmr
+    restart: unless-stopped
+    depends_on:
+      dsmr-db:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - DJANGO_TIME_ZONE=${TZ:-Europe/Amsterdam}
+      - DB_HOST=dsmr-db
+      - DB_PORT=5432
+      - DB_NAME=${DSMR_DB_NAME:-dsmrreader}
+      - DB_USER=${DSMR_DB_USER:-dsmrreader}
+      - DB_PASS=${DSMR_DB_PASSWORD:-dsmr-secure-password}
+      - DSMR_USER=${DSMR_USER:-admin}
+      - DSMR_EMAIL=${DSMR_EMAIL:-admin@orion.lan}
+      - DSMR_PASSWORD=${DSMR_PASSWORD:-dsmr-secure-password}
+      # Optional: Enable datalogger for serial port
+      - DATALOGGER_MODE=${DSMR_DATALOGGER_MODE:-standalone}
+      - DATALOGGER_SERIAL_PORT=${DSMR_DEVICE:-/dev/ttyUSB0}
+    devices:
+      - ${DSMR_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/dsmr:/app
+    networks:
+      - orion_apps
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dsmr.rule=Host(`dsmr.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.dsmr.entrypoints=websecure"
+      - "traefik.http.routers.dsmr.tls=true"
+      - "traefik.http.routers.dsmr.middlewares=security-headers@file"
+      - "traefik.http.services.dsmr.loadbalancer.server.port=80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_apps:
+    name: orion_apps
+    driver: bridge
+  orion_proxy:
+    name: orion_proxy
+    external: true

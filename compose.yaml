@@ -1,0 +1,37 @@
+# Orion-Sentinel-CoreSrv - Root Compose File
+# Dell deployment with Traefik reverse proxy
+#
+# Usage:
+#   Use orionctl to manage stacks:
+#     ./scripts/orionctl up ingress
+#     ./scripts/orionctl up observability
+#     ./scripts/orionctl up home
+#     ./scripts/orionctl up apps
+#     ./scripts/orionctl up portal
+#
+#   Or start all at once:
+#     ./scripts/orionctl up all
+#
+# Documentation: See README.md for full setup instructions
+
+# This file defines shared networks used by all stacks
+# Individual stacks are in stacks/<name>/stack.yaml
+
+# Include all stack files (Docker Compose v2.20+)
+include:
+  - path: stacks/ingress/traefik.yaml
+    env_file: .env
+  - path: stacks/observability/stack.yaml
+    env_file: .env
+  - path: stacks/home/stack.yaml
+    env_file: .env
+  - path: stacks/apps/stack.yaml
+    env_file: .env
+  - path: stacks/portal/stack.yaml
+    env_file: .env
+
+# Shared networks created by the ingress stack
+networks:
+  orion_proxy:
+    name: orion_proxy
+    driver: bridge

@@ -877,6 +877,131 @@ MEDIA_ROOT=${ORION_MEDIA_DIR}
 
 🔄 **Replication is one-way (master → replica)** - Changes on the replica will be overwritten on the next sync.
 
+## Dell Traefik Deployment (orion.lan)
+
+This section describes deploying all services behind Traefik with the `orion.lan` domain using Pi-hole Local DNS.
+
+### Service Endpoints
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Portal | https://portal.orion.lan | Homepage dashboard |
+| Grafana | https://grafana.orion.lan | Monitoring dashboards |
+| Prometheus | https://prometheus.orion.lan | Metrics collection |
+| Uptime Kuma | https://uptime.orion.lan | Status monitoring |
+| Home Assistant | https://home.orion.lan | Smart home hub |
+| Zigbee2MQTT | https://zigbee.orion.lan | Zigbee gateway |
+| Mealie | https://mealie.orion.lan | Recipe management |
+| DSMR Reader | https://dsmr.orion.lan | Energy monitoring |
+| Traefik | https://traefik.orion.lan | Reverse proxy dashboard |
+
+### Pi-hole Local DNS Setup
+
+Configure Pi-hole to resolve all `*.orion.lan` subdomains to your Dell server IP:
+
+1. **Open Pi-hole Admin** → Local DNS → DNS Records
+
+2. **Add wildcard CNAME record:**
+   - This method requires adding each subdomain individually in Pi-hole
+
+3. **Add A records for each service:**
+   ```
+   portal.orion.lan     → 192.168.1.100  # Replace with Dell IP
+   grafana.orion.lan    → 192.168.1.100
+   prometheus.orion.lan → 192.168.1.100
+   uptime.orion.lan     → 192.168.1.100
+   home.orion.lan       → 192.168.1.100
+   zigbee.orion.lan     → 192.168.1.100
+   mealie.orion.lan     → 192.168.1.100
+   dsmr.orion.lan       → 192.168.1.100
+   traefik.orion.lan    → 192.168.1.100
+   mqtt.orion.lan       → 192.168.1.100
+   ```
+
+4. **Alternative: Use dnsmasq wildcard** (advanced):
+   Add to `/etc/dnsmasq.d/02-orion.conf` on Pi-hole:
+   ```
+   address=/orion.lan/192.168.1.100
+   ```
+
+### Quick Deployment
+
+```bash
+# 1. Bootstrap storage (if not done)
+sudo ./scripts/bootstrap-storage.sh --install-fstab
+
+# 2. Configure environment
+cp .env.example .env
+# Set LOCAL_DOMAIN=orion.lan in .env
+
+# 3. Copy config files
+cp -r config/traefik/* ${ORION_INTERNAL_ROOT}/appdata/traefik/
+cp -r config/ha-proxy/* ${ORION_INTERNAL_ROOT}/appdata/ha-proxy/
+cp -r config/prometheus/* ${ORION_INTERNAL_ROOT}/observability/prometheus/
+cp -r config/loki/* ${ORION_INTERNAL_ROOT}/observability/loki/
+cp -r config/promtail/* ${ORION_INTERNAL_ROOT}/observability/promtail/
+cp -r config/grafana/provisioning/* ${ORION_INTERNAL_ROOT}/observability/grafana/provisioning/
+cp -r config/mosquitto/* ${ORION_INTERNAL_ROOT}/appdata/mosquitto/
+
+# 4. Start stacks in order
+./scripts/orionctl up ingress
+./scripts/orionctl up observability
+./scripts/orionctl up home
+./scripts/orionctl up apps
+./scripts/orionctl up portal
+
+# 5. Verify deployment
+./scripts/orionctl ps
+curl -k https://portal.orion.lan
+```
+
+### Home Assistant Host Networking
+
+Home Assistant runs with `network_mode: host` for device discovery (mDNS, Bluetooth, etc.). Since Traefik cannot route directly to host-network containers, we use an nginx proxy (`ha-proxy`) as an intermediary:
+
+```
+Client → Traefik → ha-proxy → Home Assistant (host:8123)
+```
+
+Home Assistant is also directly accessible at `http://<dell-ip>:8123`.
+
+### Automated Backups
+
+Database backups run automatically via systemd timers:
+
+| Schedule | Retention | Command |
+|----------|-----------|---------|
+| Daily @ 3:00 AM | 7 days | `./scripts/orion-backup.sh` |
+| Weekly @ 4:00 AM (Sun) | 30 days | `./scripts/orion-backup.sh --weekly` |
+
+Install backup timers:
+```bash
+sudo cp systemd/orion-backup-*.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now orion-backup-daily.timer
+sudo systemctl enable --now orion-backup-weekly.timer
+```
+
+Backup location: `${ORION_BACKUPS_DIR}/db/`
+
+### Stack Files
+
+The modular stack architecture:
+
+```
+stacks/
+├── ingress/
+│   └── traefik.yaml      # Traefik reverse proxy
+├── observability/
+│   └── stack.yaml        # Grafana, Prometheus, Loki, etc.
+├── home/
+│   └── stack.yaml        # Home Assistant, Mosquitto, Zigbee2MQTT
+├── apps/
+│   └── stack.yaml        # Mealie, DSMR Reader
+└── portal/
+    └── stack.yaml        # Homepage dashboard
+```
+
 ## Documentation
 
 ### Getting Started

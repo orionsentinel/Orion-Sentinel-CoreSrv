@@ -1,0 +1,77 @@
+# Orion-Sentinel-CoreSrv Ingress Stack
+# Traefik reverse proxy for orion.lan domain
+#
+# Usage:
+#   ./scripts/orionctl up ingress
+#
+# Domain: All services accessible at <service>.orion.lan
+# Requires: Pi-hole Local DNS configuration (see README.md)
+
+services:
+  ############################
+  # TRAEFIK: Reverse Proxy
+  ############################
+
+  traefik:
+    image: traefik:v3.2
+    container_name: orion_traefik
+    restart: unless-stopped
+    command:
+      - --api.dashboard=true
+      - --api.insecure=false
+      - --ping=true
+      - --providers.docker=true
+      - --providers.docker.exposedByDefault=false
+      - --providers.docker.network=orion_proxy
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.mqtt.address=:8883
+      - --log.level=INFO
+      - --accesslog=true
+      - --accesslog.filepath=/var/log/traefik/access.log
+      - --accesslog.bufferingsize=100
+    ports:
+      - "${TRAEFIK_HTTP_PORT:-80}:80"
+      - "443:443"
+      - "8883:8883"  # MQTT over TLS
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/traefik/dynamic:/etc/traefik/dynamic:ro
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/traefik/acme:/acme
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/traefik/logs:/var/log/traefik
+    networks:
+      - orion_proxy
+    labels:
+      - "traefik.enable=true"
+      # Dashboard
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls=true"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.middlewares=security-headers@file"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_proxy:
+    name: orion_proxy
+    driver: bridge

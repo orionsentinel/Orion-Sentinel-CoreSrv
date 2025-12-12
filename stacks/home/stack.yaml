@@ -1,0 +1,175 @@
+# Orion-Sentinel-CoreSrv Home Stack
+# Home Assistant (host networking) + Mosquitto + Zigbee2MQTT + HA Proxy
+#
+# Usage:
+#   ./scripts/orionctl up home
+#
+# Exposed at:
+#   - home.orion.lan (Home Assistant via ha-proxy)
+#   - zigbee.orion.lan (Zigbee2MQTT)
+#   - mqtt.orion.lan:8883 (MQTT over TLS)
+#
+# NOTE: Home Assistant runs with network_mode: host for device discovery.
+#       Since Traefik cannot route to host-network containers, we use
+#       ha-proxy (nginx) as an intermediary.
+
+services:
+  ############################
+  # MOSQUITTO: MQTT Broker
+  ############################
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.18
+    container_name: orion_mosquitto
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/mosquitto/data:/mosquitto/data
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/mosquitto/log:/mosquitto/log
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/mosquitto/passwd:/mosquitto/config/passwd:ro
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    networks:
+      - orion_home
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      # MQTT WebSocket endpoint via Traefik
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.mqtt.rule=HostSNI(`mqtt.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.tcp.routers.mqtt.entrypoints=mqtt"
+      - "traefik.tcp.routers.mqtt.tls=true"
+      - "traefik.tcp.services.mqtt.loadbalancer.server.port=1883"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  ############################
+  # ZIGBEE2MQTT: Zigbee Gateway
+  ############################
+
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:1.40.2
+    container_name: orion_zigbee2mqtt
+    restart: unless-stopped
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/zigbee2mqtt:/app/data
+      - /run/udev:/run/udev:ro
+    devices:
+      - ${ZIGBEE_DEVICE:-/dev/serial/by-id/usb-placeholder}:/dev/ttyACM0
+    networks:
+      - orion_home
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.zigbee2mqtt.rule=Host(`zigbee.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.zigbee2mqtt.entrypoints=websecure"
+      - "traefik.http.routers.zigbee2mqtt.tls=true"
+      - "traefik.http.routers.zigbee2mqtt.middlewares=security-headers@file"
+      - "traefik.http.services.zigbee2mqtt.loadbalancer.server.port=8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # HOME ASSISTANT: Smart Home Hub
+  # Runs with host networking for device discovery
+  ############################
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2024.12.1
+    container_name: orion_homeassistant
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8123/api/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  ############################
+  # HA-PROXY: Nginx proxy for Home Assistant
+  # Bridges host-network HA to Traefik proxy network
+  ############################
+
+  ha-proxy:
+    image: nginx:1.25-alpine
+    container_name: orion_ha_proxy
+    restart: unless-stopped
+    depends_on:
+      homeassistant:
+        condition: service_healthy
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/ha-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - orion_proxy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homeassistant.rule=Host(`home.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.homeassistant.entrypoints=websecure"
+      - "traefik.http.routers.homeassistant.tls=true"
+      - "traefik.http.services.homeassistant.loadbalancer.server.port=80"
+      # WebSocket support for Home Assistant
+      - "traefik.http.routers.homeassistant-ws.rule=Host(`home.${LOCAL_DOMAIN:-orion.lan}`) && PathPrefix(`/api/websocket`)"
+      - "traefik.http.routers.homeassistant-ws.entrypoints=websecure"
+      - "traefik.http.routers.homeassistant-ws.tls=true"
+      - "traefik.http.routers.homeassistant-ws.service=homeassistant"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_home:
+    name: orion_home
+    driver: bridge
+  orion_proxy:
+    name: orion_proxy
+    external: true

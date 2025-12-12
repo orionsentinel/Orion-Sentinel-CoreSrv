@@ -1,0 +1,74 @@
+# Prometheus Configuration
+# Orion-Sentinel-CoreSrv Dell Deployment
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'orion-sentinel'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: []
+
+# Rule files (optional)
+rule_files:
+  # - "/etc/prometheus/rules/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          instance: 'prometheus'
+
+  # Node Exporter (host metrics)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['host.docker.internal:9100']
+        labels:
+          instance: 'dell-coresrv'
+
+  # cAdvisor (container metrics)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          instance: 'dell-coresrv'
+
+  # Traefik metrics (if enabled)
+  - job_name: 'traefik'
+    static_configs:
+      - targets: ['traefik:8080']
+        labels:
+          instance: 'traefik'
+
+  # Home Assistant (if metrics enabled)
+  # - job_name: 'homeassistant'
+  #   static_configs:
+  #     - targets: ['host.docker.internal:8123']
+  #       labels:
+  #         instance: 'homeassistant'
+
+  # Loki (log aggregator metrics)
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+        labels:
+          instance: 'loki'
+
+  # Grafana metrics
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+        labels:
+          instance: 'grafana'
+
+  # Mosquitto MQTT (if metrics exporter added)
+  # - job_name: 'mosquitto'
+  #   static_configs:
+  #     - targets: ['mosquitto-exporter:9234']

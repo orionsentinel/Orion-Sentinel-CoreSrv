@@ -1,0 +1,25 @@
+[Unit]
+Description=Orion Sentinel Daily Database Backup
+Documentation=https://github.com/orionsentinel/Orion-Sentinel-CoreSrv
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/orion/Orion-Sentinel-CoreSrv/scripts/orion-backup.sh
+
+# Environment file
+EnvironmentFile=-/opt/orion/Orion-Sentinel-CoreSrv/.env
+
+# Run with low priority
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=orion-backup-daily
+
+[Install]
+WantedBy=multi-user.target

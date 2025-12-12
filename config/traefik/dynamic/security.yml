@@ -1,0 +1,65 @@
+# Traefik Dynamic Configuration - Security Middlewares
+# Apply to all services for defense-in-depth
+
+http:
+  middlewares:
+    # Security headers middleware (OWASP recommendations)
+    security-headers:
+      headers:
+        # Prevent clickjacking
+        frameDeny: true
+        # Enforce HTTPS
+        sslRedirect: true
+        # HSTS - Browser should use HTTPS (1 year)
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        # Prevent MIME type sniffing
+        contentTypeNosniff: true
+        # XSS protection in older browsers
+        browserXssFilter: true
+        # Referrer policy
+        referrerPolicy: "strict-origin-when-cross-origin"
+        # Permissions policy
+        permissionsPolicy: "geolocation=(), microphone=(), camera=()"
+        # Custom headers
+        customResponseHeaders:
+          X-Robots-Tag: "noindex, nofollow, noarchive, nosnippet"
+          X-Frame-Options: "SAMEORIGIN"
+          X-Content-Type-Options: "nosniff"
+
+    # Rate limiting for general use
+    rate-limit:
+      rateLimit:
+        average: 100
+        period: 1s
+        burst: 50
+
+    # Rate limiting for auth endpoints
+    rate-limit-auth:
+      rateLimit:
+        average: 10
+        period: 1m
+        burst: 20
+
+    # Compression middleware
+    compression:
+      compress:
+        excludedContentTypes:
+          - "text/event-stream"
+          - "application/gzip"
+          - "application/zip"
+
+  # TLS configuration
+  tls:
+    options:
+      default:
+        minVersion: VersionTLS12
+        cipherSuites:
+          - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+          - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+          - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+        curvePreferences:
+          - CurveP521
+          - CurveP384
+        sniStrict: true

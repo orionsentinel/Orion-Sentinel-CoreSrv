@@ -1,0 +1,56 @@
+# Orion-Sentinel-CoreSrv Portal Stack
+# Homepage Dashboard
+#
+# Usage:
+#   ./scripts/orionctl up portal
+#
+# Exposed at:
+#   - portal.orion.lan
+
+services:
+  ############################
+  # HOMEPAGE: Dashboard
+  ############################
+
+  homepage:
+    image: ghcr.io/gethomepage/homepage:v0.9.10
+    container_name: orion_homepage
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - PUID=${ORION_UID:-1000}
+      - PGID=${ORION_GID:-1000}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/homepage:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homepage.rule=Host(`portal.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.homepage.entrypoints=websecure"
+      - "traefik.http.routers.homepage.tls=true"
+      - "traefik.http.routers.homepage.middlewares=security-headers@file"
+      - "traefik.http.services.homepage.loadbalancer.server.port=3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_proxy:
+    name: orion_proxy
+    external: true

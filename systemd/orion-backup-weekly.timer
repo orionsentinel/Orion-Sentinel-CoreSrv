@@ -1,0 +1,16 @@
+[Unit]
+Description=Orion Sentinel Weekly Database Backup Timer
+Documentation=https://github.com/orionsentinel/Orion-Sentinel-CoreSrv
+
+[Timer]
+# Run every Sunday at 4:00 AM
+OnCalendar=Sun *-*-* 04:00:00
+
+# If system was off at scheduled time, run when it comes back up
+Persistent=true
+
+# Random delay up to 30 minutes
+RandomizedDelaySec=1800
+
+[Install]
+WantedBy=timers.target

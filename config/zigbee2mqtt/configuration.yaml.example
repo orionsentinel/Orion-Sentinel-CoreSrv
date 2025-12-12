@@ -1,0 +1,54 @@
+# Zigbee2MQTT Configuration
+# Orion-Sentinel-CoreSrv Dell Deployment
+#
+# Copy this file to your data directory and update settings
+# See: https://www.zigbee2mqtt.io/guide/configuration/
+
+# Home Assistant integration
+homeassistant: true
+
+# MQTT settings
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://mosquitto:1883
+  # Uncomment for authentication:
+  # user: ${MQTT_USER}
+  # password: ${MQTT_PASSWORD}
+
+# Serial port configuration
+# IMPORTANT: Update this to match your Zigbee adapter
+serial:
+  port: /dev/ttyACM0
+  # adapter: deconz  # Uncomment for ConBee/RaspBee
+  # adapter: ezsp    # Uncomment for EZSP adapters
+
+# Web interface
+frontend:
+  port: 8080
+  host: 0.0.0.0
+
+# Advanced settings
+advanced:
+  homeassistant_legacy_entity_attributes: false
+  legacy_api: false
+  legacy_availability_payload: false
+  log_level: info
+  log_output:
+    - console
+  channel: 11
+  network_key: GENERATE
+
+# Device availability monitoring
+availability:
+  active:
+    timeout: 10
+  passive:
+    timeout: 1500
+
+# Permit join (disable after pairing devices)
+permit_join: false
+
+# OTA updates
+ota:
+  update_check_interval: 86400
+  disable_automatic_update_check: false
