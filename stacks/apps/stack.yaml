@@ -127,7 +127,7 @@ services:
   ############################
 
   dsmr:
-    image: xirixiz/dsmr-reader-docker:latest
+    image: xirixiz/dsmr-reader-docker:2024.1
     container_name: orion_dsmr
     restart: unless-stopped
     depends_on:

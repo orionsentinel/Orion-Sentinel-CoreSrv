@@ -37,8 +37,10 @@ DSMR_DB_CONTAINER="orion_dsmr_db"
 # Database credentials (from environment)
 MEALIE_DB_USER="${MEALIE_DB_USER:-mealie}"
 MEALIE_DB_NAME="${MEALIE_DB_NAME:-mealie}"
+MEALIE_DB_PASSWORD="${MEALIE_DB_PASSWORD:-mealie-secure-password}"
 DSMR_DB_USER="${DSMR_DB_USER:-dsmrreader}"
 DSMR_DB_NAME="${DSMR_DB_NAME:-dsmrreader}"
+DSMR_DB_PASSWORD="${DSMR_DB_PASSWORD:-dsmr-secure-password}"
 
 # Color output
 RED='\033[0;31m'
@@ -146,7 +148,8 @@ info "Backing up Mealie database..."
 if docker ps --format '{{.Names}}' | grep -q "^${MEALIE_DB_CONTAINER}$"; then
     MEALIE_BACKUP_FILE="${TARGET_DIR}/mealie-${BACKUP_TYPE}-${DATE_ONLY}.sql.gz"
     
-    docker exec -t "$MEALIE_DB_CONTAINER" \
+    # Use PGPASSWORD for authentication
+    docker exec -e "PGPASSWORD=${MEALIE_DB_PASSWORD}" -t "$MEALIE_DB_CONTAINER" \
         pg_dump -U "$MEALIE_DB_USER" -d "$MEALIE_DB_NAME" \
         | gzip > "$MEALIE_BACKUP_FILE"
     
@@ -169,7 +172,8 @@ info "Backing up DSMR database..."
 if docker ps --format '{{.Names}}' | grep -q "^${DSMR_DB_CONTAINER}$"; then
     DSMR_BACKUP_FILE="${TARGET_DIR}/dsmr-${BACKUP_TYPE}-${DATE_ONLY}.sql.gz"
     
-    docker exec -t "$DSMR_DB_CONTAINER" \
+    # Use PGPASSWORD for authentication
+    docker exec -e "PGPASSWORD=${DSMR_DB_PASSWORD}" -t "$DSMR_DB_CONTAINER" \
         pg_dump -U "$DSMR_DB_USER" -d "$DSMR_DB_NAME" \
         | gzip > "$DSMR_BACKUP_FILE"
     

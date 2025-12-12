@@ -150,6 +150,7 @@ services:
       - "traefik.http.routers.homeassistant.rule=Host(`home.${LOCAL_DOMAIN:-orion.lan}`)"
       - "traefik.http.routers.homeassistant.entrypoints=websecure"
       - "traefik.http.routers.homeassistant.tls=true"
+      - "traefik.http.routers.homeassistant.middlewares=security-headers@file"
       - "traefik.http.services.homeassistant.loadbalancer.server.port=80"
       # WebSocket support for Home Assistant
       - "traefik.http.routers.homeassistant-ws.rule=Host(`home.${LOCAL_DOMAIN:-orion.lan}`) && PathPrefix(`/api/websocket`)"

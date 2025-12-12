@@ -6,7 +6,7 @@ http:
     # Security headers middleware (OWASP recommendations)
     security-headers:
       headers:
-        # Prevent clickjacking
+        # Prevent clickjacking (X-Frame-Options: DENY)
         frameDeny: true
         # Enforce HTTPS
         sslRedirect: true
@@ -25,8 +25,6 @@ http:
         # Custom headers
         customResponseHeaders:
           X-Robots-Tag: "noindex, nofollow, noarchive, nosnippet"
-          X-Frame-Options: "SAMEORIGIN"
-          X-Content-Type-Options: "nosniff"
 
     # Rate limiting for general use
     rate-limit:
