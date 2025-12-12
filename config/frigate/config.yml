@@ -25,14 +25,14 @@
 #
 # To enable MQTT:
 # 1. Uncomment the mqtt section below
-# 2. Set FRIGATE_MQTT_HOST, FRIGATE_MQTT_USER, FRIGATE_MQTT_PASSWORD in .env
-# 3. If using the homeauto stack, use host: orion_mosquitto
+# 2. Update the host to your MQTT broker (use 'orion_mosquitto' for home stack)
+# 3. Update user/password if your broker requires authentication
 mqtt:
   enabled: false
-  # host: "{FRIGATE_MQTT_HOST}"
+  # host: orion_mosquitto
   # port: 1883
-  # user: "{FRIGATE_MQTT_USER}"
-  # password: "{FRIGATE_MQTT_PASSWORD}"
+  # user: frigate
+  # password: your_mqtt_password
   # topic_prefix: frigate
   # client_id: frigate
 

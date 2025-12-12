@@ -27,8 +27,8 @@ mqtt:
   # Uncomment to enable MQTT:
   # host: orion_mosquitto
   # port: 1883
-  # user: "{FRIGATE_MQTT_USER}"
-  # password: "{FRIGATE_MQTT_PASSWORD}"
+  # user: frigate
+  # password: your_mqtt_password
 
 # Object detection (CPU by default)
 detectors:
