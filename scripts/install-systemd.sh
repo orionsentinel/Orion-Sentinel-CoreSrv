@@ -143,9 +143,6 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --all)
             INSTALL_ALL=true
-            INSTALL_REPLICA=true
-            INSTALL_BACKUP=true
-            INSTALL_FRIGATE=true
             shift
             ;;
         --replica)

@@ -296,9 +296,9 @@ setup_env_files() {
         info "Setting up NVR/Frigate configuration..."
         
         # Copy Frigate config template if not exists
-        if [ -f "config/frigate/config.example.yml" ] && [ ! -f "$base_dir/nvr/frigate/config.yml" ]; then
+        if [ -f "$REPO_ROOT/config/frigate/config.example.yml" ] && [ ! -f "$base_dir/nvr/frigate/config.yml" ]; then
             info "Copying Frigate configuration template..."
-            cp config/frigate/config.example.yml "$base_dir/nvr/frigate/config.yml"
+            cp "$REPO_ROOT/config/frigate/config.example.yml" "$base_dir/nvr/frigate/config.yml"
             success "Created $base_dir/nvr/frigate/config.yml"
         else
             warn "Frigate config already exists at $base_dir/nvr/frigate/config.yml"
