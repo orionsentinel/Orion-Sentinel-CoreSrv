@@ -386,6 +386,48 @@ Use this checklist for deploying Orion-Sentinel-CoreSrv in production.
   - Navigate to `https://ha.local`
   - Complete onboarding
 
+### NVR / Frigate (Optional - Camera Recording)
+
+- [ ] **Create Frigate config from template:**
+  ```bash
+  cp config/frigate/config.example.yml /srv/orion-sentinel-core/nvr/frigate/config.yml
+  ```
+
+- [ ] **Configure cameras:**
+  ```bash
+  nano /srv/orion-sentinel-core/nvr/frigate/config.yml
+  ```
+  - Replace `RTSP_USER` and `RTSP_PASS` with camera credentials
+  - Update camera IP addresses (192.168.10.11, etc.)
+  - Adjust camera names/locations as needed
+  - For Tapo cameras: Create account in Tapo app → Camera Settings → Advanced → Camera Account
+
+- [ ] **Configure storage in .env:**
+  ```bash
+  # Primary storage (SSD recommended, 14-day retention)
+  ORION_CCTV_MEDIA_DIR=/mnt/orion-cctv
+  
+  # Backup storage (HDD OK, 30-day archive)
+  ORION_CCTV_BACKUP_DIR=/mnt/orion-cctv-backup
+  ```
+
+- [ ] **Start NVR:**
+  ```bash
+  make up-nvr
+  # or: docker compose -f stacks/home/cam_nvr.compose.yml up -d
+  ```
+
+- [ ] **Access Frigate:**
+  - Direct: http://localhost:5000
+  - Via Traefik: https://frigate.orion.lan
+  - RTSP restream: rtsp://localhost:8554/<camera_name>
+
+- [ ] **Install Frigate backup timer (optional):**
+  ```bash
+  sudo ./scripts/install-systemd.sh --frigate
+  ```
+  This runs daily at 03:30 to manage recording retention.
+
 ## Post-Deployment
 
 ### Backups

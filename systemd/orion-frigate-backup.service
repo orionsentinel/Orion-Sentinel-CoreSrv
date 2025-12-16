@@ -1,0 +1,25 @@
+[Unit]
+Description=Orion Sentinel Frigate Recording Backup & Retention
+Documentation=https://github.com/orionsentinel/Orion-Sentinel-CoreSrv
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/orion/Orion-Sentinel-CoreSrv/scripts/backup-frigate-recordings.sh
+
+# Environment file
+EnvironmentFile=-/opt/orion/Orion-Sentinel-CoreSrv/.env
+
+# Run with low priority
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=orion-frigate-backup
+
+[Install]
+WantedBy=multi-user.target
