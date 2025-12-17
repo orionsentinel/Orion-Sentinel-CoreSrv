@@ -125,6 +125,15 @@ Access your services:
 ./orionctl.sh up-observability
 ```
 
+**Start NVR/Frigate (Camera Recording):**
+```bash
+# First, configure your cameras:
+nano /srv/orion-sentinel-core/nvr/frigate/config.yml
+
+# Then start the NVR:
+make up-nvr
+```
+
 **Start Everything:**
 ```bash
 ./orionctl.sh up-full
@@ -143,6 +152,7 @@ Access your services:
      192.168.1.100  jellyfin.local
      192.168.1.100  auth.local
      192.168.1.100  grafana.local
+     192.168.1.100  frigate.orion.lan
      # ... etc
      ```
 
@@ -150,6 +160,11 @@ Access your services:
    - Access each service and complete the initial setup wizard
    - Connect services together (Prowlarr → Sonarr/Radarr → qBittorrent)
    - See [media/README.md](media/README.md) for detailed configuration
+
+4. **Configure NVR/Frigate (if using cameras):**
+   - Edit `config/frigate/config.yml` with your camera IPs and credentials
+   - Set `ORION_CCTV_MEDIA_DIR` and `ORION_CCTV_BACKUP_DIR` in `.env`
+   - See the README.md "Orion Camera NVR" section for details
 
 ### Useful Commands
 
@@ -256,6 +271,7 @@ Internet → Router → CoreSrv (This Installation)
 
 - **Core:** Traefik (reverse proxy) + Authelia (SSO with 2FA)
 - **Media:** Jellyfin + Sonarr + Radarr + qBittorrent (VPN) + Jellyseerr + Prowlarr + Bazarr
+- **NVR:** Frigate (camera recording with object detection)
 - **Cloud:** Nextcloud + PostgreSQL
 - **Monitoring:** Prometheus + Grafana + Loki + Promtail + Uptime Kuma
 - **Search:** SearXNG (privacy-respecting metasearch)

@@ -155,7 +155,7 @@ create_directories() {
     info "Creating directories at: $base_dir"
     
     # Create main directories
-    sudo mkdir -p "$base_dir"/{config,data,media,cloud,monitoring,backups}
+    sudo mkdir -p "$base_dir"/{config,data,media,cloud,monitoring,backups,nvr}
     
     # Create media subdirectories
     sudo mkdir -p "$base_dir/media/torrents"/{movies,tv}
@@ -166,6 +166,9 @@ create_directories() {
     
     # Create monitoring subdirectories
     sudo mkdir -p "$base_dir/monitoring"/{prometheus,grafana,loki}
+    
+    # Create NVR/Frigate subdirectories
+    sudo mkdir -p "$base_dir/nvr/frigate"
     
     # Set ownership
     local current_user=$(id -un)
@@ -288,6 +291,33 @@ setup_env_files() {
         fi
     fi
     
+    echo ""
+    if confirm "Do you want to set up NVR/Frigate (camera recording)?"; then
+        info "Setting up NVR/Frigate configuration..."
+        
+        # Copy Frigate config template if not exists
+        if [ -f "$REPO_ROOT/config/frigate/config.example.yml" ] && [ ! -f "$base_dir/nvr/frigate/config.yml" ]; then
+            info "Copying Frigate configuration template..."
+            cp "$REPO_ROOT/config/frigate/config.example.yml" "$base_dir/nvr/frigate/config.yml"
+            success "Created $base_dir/nvr/frigate/config.yml"
+        else
+            warn "Frigate config already exists at $base_dir/nvr/frigate/config.yml"
+        fi
+        
+        echo ""
+        warn "Important: Edit $base_dir/nvr/frigate/config.yml with your camera details:"
+        info "  - Replace RTSP_USER and RTSP_PASS with your camera credentials"
+        info "  - Update camera IP addresses (192.168.10.11, etc.)"
+        info "  - Adjust camera names/locations as needed"
+        echo ""
+        info "Also configure these variables in .env:"
+        info "  - ORION_CCTV_MEDIA_DIR: Primary storage for recordings (SSD recommended)"
+        info "  - ORION_CCTV_BACKUP_DIR: Backup storage for archived recordings"
+        echo ""
+        info "Start NVR with: make up-nvr"
+        info "Access Frigate at: http://localhost:5000 or https://frigate.orion.lan"
+    fi
+    
     # Always create search and home automation (they're simple)
     for env_file in search home-automation maintenance; do
         if [ ! -f "env/.env.$env_file" ]; then
@@ -389,14 +419,22 @@ Next Steps:
 4. Start additional services as needed:
    ./orionctl.sh up-media          # Media stack
    ./orionctl.sh up-observability  # Monitoring
+   make up-nvr                     # NVR/Frigate (cameras)
    ./orionctl.sh up-full           # Everything
 
-5. Configure services:
+5. For NVR/Frigate (camera recording):
+   - Edit config: nano <data_dir>/nvr/frigate/config.yml
+   - Configure camera IPs and credentials
+   - Set ORION_CCTV_MEDIA_DIR in .env for recording storage
+   - Start with: make up-nvr
+   - Access at: http://localhost:5000 or https://frigate.orion.lan
+
+6. Configure services:
    - Set up Authelia users (see core/authelia/users.yml)
    - Configure DNS entries in Pi-hole (if available)
    - Set up media services (Sonarr, Radarr, etc.)
 
-6. Check service status:
+7. Check service status:
    ./orionctl.sh status
    ./orionctl.sh health
 

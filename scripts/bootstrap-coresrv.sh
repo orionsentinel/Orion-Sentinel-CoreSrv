@@ -153,7 +153,7 @@ fi
 info "Creating directories under $DATA_ROOT..."
 
 # Create main directories
-sudo mkdir -p "$DATA_ROOT"/{core,media,monitoring,home-automation,cloud,maintenance}
+sudo mkdir -p "$DATA_ROOT"/{core,media,monitoring,home-automation,cloud,maintenance,nvr}
 
 # Core services
 sudo mkdir -p "$DATA_ROOT"/core/{traefik/{dynamic,acme},authelia,redis}
@@ -167,6 +167,9 @@ sudo mkdir -p "$DATA_ROOT"/monitoring/{prometheus/{data,rules},grafana/{data,pro
 
 # Home automation
 sudo mkdir -p "$DATA_ROOT"/home-automation/{homeassistant,zigbee2mqtt,mosquitto/{config,data,log},mealie,dsmr}
+
+# NVR / Frigate (camera recording)
+sudo mkdir -p "$DATA_ROOT"/nvr/frigate
 
 # Cloud
 sudo mkdir -p "$DATA_ROOT"/cloud/{nextcloud,postgresql}
@@ -261,6 +264,14 @@ if [ -f home-automation/mosquitto/mosquitto.conf.example ] && [ ! -f "$DATA_ROOT
     info "Copying Mosquitto configuration..."
     cp home-automation/mosquitto/mosquitto.conf.example "$DATA_ROOT"/home-automation/mosquitto/mosquitto.conf
     success "Mosquitto configuration copied"
+fi
+
+# Frigate NVR configuration
+if [ -f config/frigate/config.example.yml ] && [ ! -f "$DATA_ROOT"/nvr/frigate/config.yml ]; then
+    info "Copying Frigate configuration template..."
+    cp config/frigate/config.example.yml "$DATA_ROOT"/nvr/frigate/config.yml
+    success "Frigate configuration copied"
+    warn "Edit $DATA_ROOT/nvr/frigate/config.yml with your camera details before starting NVR"
 fi
 
 # Grafana provisioning
@@ -358,12 +369,19 @@ echo "3. Start your services:"
 echo "   ${CYAN}make up-media${NC}           # Media stack only"
 echo "   ${CYAN}make up-traefik${NC}         # Add reverse proxy"
 echo "   ${CYAN}make up-observability${NC}   # Add monitoring"
+echo "   ${CYAN}make up-nvr${NC}             # Start NVR/Frigate (cameras)"
 echo "   ${CYAN}make up-full${NC}            # Start everything"
 echo ""
-echo "4. Check service status:"
+echo "4. For NVR/Frigate setup (camera recording):"
+echo "   ${CYAN}nano $DATA_ROOT/nvr/frigate/config.yml${NC}"
+echo "   - Add your camera IPs and credentials"
+echo "   - Set ORION_CCTV_MEDIA_DIR and ORION_CCTV_BACKUP_DIR in .env"
+echo "   - See README.md 'Orion Camera NVR' section for details"
+echo ""
+echo "5. Check service status:"
 echo "   ${CYAN}make status${NC}"
 echo ""
-echo "5. View logs:"
+echo "6. View logs:"
 echo "   ${CYAN}make logs${NC}"
 echo "   ${CYAN}make logs SVC=jellyfin${NC}"
 echo ""
