@@ -1,0 +1,264 @@
+name: Compose Validation
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+      - 'copilot/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+# Minimal permissions
+permissions:
+  contents: read
+
+jobs:
+  validate-compose-files:
+    name: Validate Docker Compose Files
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Find and validate all compose files
+        run: |
+          set -e
+          echo "🔍 Finding all compose files..."
+          
+          # Find all compose files
+          COMPOSE_FILES=$(find . -type f \( -name "compose*.yml" -o -name "compose*.yaml" -o -name "docker-compose*.yml" -o -name "docker-compose*.yaml" -o -name "stack.yaml" -o -name "stack.yml" \) | sort)
+          
+          if [ -z "$COMPOSE_FILES" ]; then
+            echo "❌ No compose files found"
+            exit 1
+          fi
+          
+          echo "📄 Found compose files:"
+          echo "$COMPOSE_FILES"
+          echo ""
+          
+          FAILED=0
+          VALIDATED=0
+          
+          # Validate each file
+          for FILE in $COMPOSE_FILES; do
+            echo "🔄 Validating: $FILE"
+            
+            # Skip files in .github directory or node_modules
+            if [[ "$FILE" == *".github"* ]] || [[ "$FILE" == *"node_modules"* ]]; then
+              echo "  ⏭️  Skipped (in excluded directory)"
+              continue
+            fi
+            
+            # Try to validate the file
+            if docker compose -f "$FILE" config > /dev/null 2>&1; then
+              echo "  ✅ Valid"
+              VALIDATED=$((VALIDATED + 1))
+            else
+              echo "  ❌ Invalid - showing error:"
+              docker compose -f "$FILE" config 2>&1 | sed 's/^/    /'
+              FAILED=$((FAILED + 1))
+            fi
+            echo ""
+          done
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 Summary:"
+          echo "  ✅ Valid:   $VALIDATED"
+          echo "  ❌ Failed:  $FAILED"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          if [ $FAILED -gt 0 ]; then
+            echo ""
+            echo "❌ Validation failed for $FAILED file(s)"
+            exit 1
+          else
+            echo ""
+            echo "✅ All compose files are valid!"
+          fi
+
+  yaml-lint:
+    name: YAML Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install yamllint
+        run: pip install yamllint
+      
+      - name: Run yamllint
+        run: |
+          echo "🔍 Running yamllint..."
+          yamllint -c .yamllint.yml . || {
+            echo "⚠️  YAML linting found issues (non-blocking)"
+            exit 0
+          }
+          echo "✅ YAML linting passed!"
+
+  validate-profiles:
+    name: Validate Compose Profiles
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Create dummy .env for validation
+        run: |
+          cat > .env << 'EOF'
+          # Dummy environment for validation
+          PUID=1000
+          PGID=1000
+          TZ=Europe/Amsterdam
+          LOCAL_DOMAIN=orion.lan
+          DOMAIN=local
+          TRAEFIK_HTTP_PORT=80
+          
+          # Paths (dummy for validation)
+          ORION_INTERNAL_ROOT=/srv/orion/internal
+          ORION_EXTERNAL_PRIMARY=/srv/orion/external_primary
+          ORION_EXTERNAL_REPLICA=/srv/orion/external_replica
+          
+          # Database passwords (dummy)
+          MEALIE_DB_PASSWORD=dummy
+          DSMR_DB_PASSWORD=dummy
+          GRAFANA_ADMIN_PASSWORD=dummy
+          GRAFANA_ADMIN_USER=admin
+          PROMETHEUS_RETENTION_TIME=15d
+          
+          # User IDs
+          ORION_UID=1000
+          ORION_GID=1000
+          EOF
+      
+      - name: Validate root compose with ingress
+        run: |
+          echo "🔄 Validating compose.yaml (root file)..."
+          docker compose -f compose.yaml config > /dev/null
+          echo "✅ Root compose file is valid"
+      
+      - name: Validate individual stack files
+        run: |
+          echo "🔄 Validating individual stack files..."
+          
+          for STACK_FILE in stacks/*/stack.yaml stacks/*/*.yaml; do
+            if [ -f "$STACK_FILE" ]; then
+              echo "  Validating: $STACK_FILE"
+              docker compose -f "$STACK_FILE" config > /dev/null
+              echo "  ✅ $STACK_FILE is valid"
+            fi
+          done
+          
+          echo "✅ All stack files validated"
+      
+      - name: Validate legacy compose files
+        run: |
+          echo "🔄 Validating legacy compose files in compose/ directory..."
+          
+          for COMPOSE_FILE in compose/docker-compose*.yml; do
+            if [ -f "$COMPOSE_FILE" ]; then
+              echo "  Validating: $COMPOSE_FILE"
+              docker compose -f "$COMPOSE_FILE" config > /dev/null || {
+                echo "  ⚠️  $COMPOSE_FILE may need environment variables"
+              }
+            fi
+          done
+          
+          echo "✅ Legacy compose files checked"
+
+  secrets-hygiene:
+    name: Secrets Hygiene Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check .gitignore includes .env
+        run: |
+          echo "🔍 Checking .gitignore..."
+          
+          if ! grep -q "^\.env$" .gitignore && ! grep -q "^\*\.env$" .gitignore; then
+            echo "❌ .env is not in .gitignore!"
+            exit 1
+          fi
+          
+          echo "✅ .env is properly gitignored"
+      
+      - name: Check for committed secrets
+        run: |
+          echo "🔍 Scanning for potential secrets..."
+          
+          # Patterns that should only appear in .env.example files
+          PATTERNS=(
+            "_PASSWORD="
+            "_TOKEN="
+            "_SECRET="
+            "_KEY="
+            "API_KEY="
+            "APP_KEY="
+            "BEGIN PRIVATE KEY"
+            "BEGIN RSA PRIVATE KEY"
+          )
+          
+          FOUND_SECRETS=0
+          
+          for PATTERN in "${PATTERNS[@]}"; do
+            echo "  Checking for: $PATTERN"
+            
+            # Search excluding .env.example files and other safe files
+            RESULTS=$(grep -r "$PATTERN" . \
+              --include="*.yml" \
+              --include="*.yaml" \
+              --include="*.env" \
+              --include="*.sh" \
+              --include="*.json" \
+              --include="*.conf" \
+              --include="*.config" \
+              --exclude="*.example" \
+              --exclude="*.example.*" \
+              --exclude-dir=".git" \
+              --exclude-dir="node_modules" \
+              --exclude-dir=".github" \
+              2>/dev/null || true)
+            
+            if [ -n "$RESULTS" ]; then
+              # Filter out comments and safe references
+              FILTERED=$(echo "$RESULTS" | grep -v "^[[:space:]]*#" || true)
+              
+              if [ -n "$FILTERED" ]; then
+                echo "  ⚠️  Found potential secrets:"
+                echo "$FILTERED" | sed 's/^/    /'
+                FOUND_SECRETS=$((FOUND_SECRETS + 1))
+              fi
+            fi
+          done
+          
+          if [ $FOUND_SECRETS -gt 0 ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "⚠️  Found $FOUND_SECRETS potential secret pattern(s)"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "If these are false positives (references in docs/examples), you can ignore."
+            echo "If these contain actual secrets, remove them immediately!"
+            echo ""
+            echo "This check is non-blocking but requires manual review."
+            exit 0
+          else
+            echo ""
+            echo "✅ No obvious secrets found in tracked files"
+          fi

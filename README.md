@@ -1114,6 +1114,7 @@ stacks/
 - **[docs/SETUP-CoreSrv.md](docs/SETUP-CoreSrv.md)** - Dell OptiPlex setup guide
 
 ### Operations & Maintenance
+- **[docs/quality-gates.md](docs/quality-gates.md)** - CI/CD workflows and quality gates
 - **[backup/README.md](backup/README.md)** - Backup and restore guide
 - **[docs/UPDATE.md](docs/UPDATE.md)** - Update procedures and version management
 - **[docs/RUNBOOKS.md](docs/RUNBOOKS.md)** - Troubleshooting and operational procedures
