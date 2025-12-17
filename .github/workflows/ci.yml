@@ -53,6 +53,14 @@ jobs:
         run: |
           docker compose -f compose/docker-compose.extras.yml config > /dev/null
           echo "✓ Extras compose file is valid"
+      
+      - name: Validate mealie-sync compose file
+        run: |
+          cd stacks/apps/mealie-sync
+          # Create minimal .env for validation
+          echo "MEALIE_API_TOKEN=test_token" > .env
+          docker compose -f compose.yml config > /dev/null
+          echo "✓ Mealie-sync compose file is valid"
 
   yaml-lint:
     name: YAML Linting
@@ -218,3 +226,47 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
         continue-on-error: true
+
+  python-tests:
+    name: Python Unit Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd stacks/apps/mealie-sync
+          pip install -r app/requirements.txt
+          pip install pytest
+      
+      - name: Run pytest
+        run: |
+          cd stacks/apps/mealie-sync
+          pytest tests/ -v --tb=short
+      
+      - name: Verify .env.example exists
+        run: |
+          cd stacks/apps/mealie-sync
+          if [ ! -f .env.example ]; then
+            echo "✗ .env.example not found"
+            exit 1
+          fi
+          echo "✓ .env.example exists"
+          
+          # Check required variables are documented
+          for var in MEALIE_API_TOKEN MEALIE_BASE_URL SYNC_INTERVAL_MINUTES MAX_NEW_RECIPES_PER_RUN; do
+            if ! grep -q "$var" .env.example; then
+              echo "✗ Required variable $var not found in .env.example"
+              exit 1
+            fi
+          done
+          echo "✓ All required variables documented in .env.example"

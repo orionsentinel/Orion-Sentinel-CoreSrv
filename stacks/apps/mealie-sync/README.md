@@ -4,11 +4,38 @@
 
 Mealie Recipe Sync is an automated service that periodically imports recipes into your Mealie instance from configured sources. It supports:
 
-- **RSS Feeds** - Import latest recipes from food blogs
+- **RSS Feeds** - Import latest recipes from food blogs (standard RSS or with suffix)
+- **Index Crawling** - Discover recipes by crawling recipe index pages
+- **Hybrid RSS/Crawl** - Try RSS feeds first, fall back to crawling if needed
 - **URL Lists** - Curated lists of specific recipe URLs
-- **Sitemaps** - Bulk import from recipe site sitemaps (with filtering)
 
-The service runs continuously, checking for new recipes on a configurable schedule and importing them automatically to your Mealie instance.
+The service runs continuously with **production-ready features**:
+
+- ✅ **SQLite state tracking** - Never imports the same recipe twice
+- ✅ **Rate limiting per domain** - Polite crawling with configurable delays
+- ✅ **URL normalization** - Removes tracking parameters and deduplicates URLs
+- ✅ **Domain filtering** - Only processes URLs from allowed domains
+- ✅ **Dry run mode** - Test configuration without importing
+- ✅ **Structured logging** - JSON logs compatible with Loki/Promtail
+- ✅ **Retry logic** - Automatic retries for transient failures
+- ✅ **Error tracking** - Records failures in database for troubleshooting
+
+## Pre-configured Sources
+
+10 curated recipe sources are **already configured** in `config/recipe_sources.yaml`:
+
+1. **Ottolenghi** - Official recipes (crawl)
+2. **The Guardian** - Ottolenghi column (RSS)
+3. **The Happy Foodie** - Recipe archive (crawl)
+4. **Meera Sodha** - The New Vegan (RSS)
+5. **Akis Petretzikis** - Greek recipes (crawl)
+6. **RecipeTin Eats** - RSS with crawl fallback
+7. **Great British Chefs** - Middle Eastern collection (crawl)
+8. **BBC Good Food** - Middle Eastern recipes (crawl)
+9. **The Mediterranean Dish** - RSS with crawl fallback
+10. **Serious Eats** - Middle Eastern recipes (crawl)
+
+All sources are enabled by default and ready to use!
 
 ## Quick Start
 
@@ -32,17 +59,24 @@ nano .env  # Add your MEALIE_API_TOKEN
 
 **Required:** `MEALIE_API_TOKEN`
 
-### 3. Configure Recipe Sources
+### 3. Configure Recipe Sources (Optional)
 
-Copy and edit the sources configuration:
+The service comes with **10 pre-configured sources** ready to use! You can:
 
+**Option A: Use defaults (recommended for first run)**
 ```bash
-cp config/sources.yaml.example config/sources.yaml
-cp config/settings.yaml.example config/settings.yaml
-nano config/sources.yaml  # Add your recipe sources
+# Use pre-configured sources as-is
+# Skip this step and go straight to starting the service
 ```
 
-See [Configuration](#configuration) section below for details.
+**Option B: Customize sources**
+```bash
+# Edit the configuration
+cd stacks/apps/mealie-sync
+sudo nano config/recipe_sources.yaml
+```
+
+See [Configuration](#configuration) section for details on source types.
 
 ### 4. Start the Service
 
@@ -76,94 +110,150 @@ Sync complete! Imported 5 new recipes
 
 ### Sync Process
 
-1. **Check Sources** - Fetches URLs from all enabled sources
-2. **Filter** - Skips already-imported recipes (tracked in `/data/imported_urls.txt`)
-3. **Limit** - Imports up to `MAX_NEW_RECIPES_PER_RUN` recipes
-4. **Import** - Uses Mealie's built-in recipe scraper to import each URL
-5. **Wait** - Sleeps until next sync interval
-6. **Repeat** - Continuous loop
+1. **Discover URLs** - Fetches URLs from all enabled sources (RSS, crawling, etc.)
+2. **Normalize** - Removes tracking parameters (utm_*, fbclid, etc.) and deduplicates
+3. **Filter by Domain** - Only processes URLs from allowed domains
+4. **Check State** - Skips URLs already successfully imported (tracked in SQLite)
+5. **Rate Limit** - Waits between requests to same domain (default: 2 seconds)
+6. **Import** - Uses Mealie's built-in recipe scraper to import each URL
+7. **Track Results** - Records success/failure in database
+8. **Wait** - Sleeps until next sync interval
+9. **Repeat** - Continuous loop
 
 ### State Persistence
 
-The service tracks:
-- **Imported URLs** - `/data/imported_urls.txt` (one URL per line)
-- **Sync State** - `/data/sync_state.json` (last run time, counts)
+The service uses **SQLite database** (`/data/state.db`) to track:
+- **seen_urls** - All URLs discovered, with domain and timestamp
+- **attempts** - Every import attempt (success/failure)
+- **imports** - Successfully imported recipes
+- **sync_runs** - Statistics for each sync run
 
-This prevents re-importing the same recipe multiple times.
+This ensures recipes are never imported twice and provides full audit trail.
+
+### Dry Run Mode
+
+Test your configuration safely:
+
+```bash
+# Enable dry run in .env
+DRY_RUN=true
+
+# Start service
+docker compose --profile food_sync up -d
+
+# Watch logs to see what would be imported
+docker logs -f orion_mealie_sync
+```
+
+**Dry run will:**
+- ✅ Discover all URLs from sources
+- ✅ Apply filters and normalization
+- ✅ Log what would be imported
+- ❌ NOT import to Mealie
+- ❌ NOT modify state database
 
 ## Configuration
 
-### Recipe Sources (`config/sources.yaml`)
+### Recipe Sources (`config/recipe_sources.yaml`)
 
-#### RSS Feeds
+The service comes with 10 pre-configured sources. All sources support:
+- `enabled: true/false` - Enable/disable individual sources
+- `allow_domains` - List of allowed domains (security feature)
 
-Import from recipe blog RSS feeds:
+#### Source Types
 
-```yaml
-sources:
-  - type: rss
-    enabled: true
-    name: Minimalist Baker
-    url: https://minimalistbaker.com/feed/
-    max_entries: 10  # Check latest 10 posts
-```
+**1. RSS with Suffix (`rss_suffix`)**
 
-**Popular Recipe RSS Feeds:**
-- Minimalist Baker: `https://minimalistbaker.com/feed/`
-- Budget Bytes: `https://www.budgetbytes.com/feed/`
-- Serious Eats: `https://www.seriouseats.com/recipes.rss`
-- Cookie and Kate: `https://cookieandkate.com/feed/`
-- Gimme Some Oven: `https://www.gimmesomeoven.com/feed/`
-
-#### URL Lists
-
-Manually curated recipe collections:
+Constructs RSS URL by adding suffix to index URL:
 
 ```yaml
-sources:
-  - type: url_list
-    enabled: true
-    name: Family Favorites
-    urls:
-      - https://www.allrecipes.com/recipe/228823/classic-lasagna/
-      - https://www.foodnetwork.com/recipes/alton-brown/homemade-mac-and-cheese-recipe-1911679
+- name: "The Guardian — Ottolenghi recipes"
+  type: "rss_suffix"
+  enabled: true
+  index_url: "https://www.theguardian.com/food/series/yotam-ottolenghi-recipes"
+  rss_suffix: "/rss"  # Final URL: index_url + rss_suffix
+  allow_domains: ["theguardian.com"]
+  max_entries: 20  # Number of latest entries to check
 ```
 
-**Best for:**
-- Specific recipes you want to save
-- Themed collections (Holiday Recipes, Quick Dinners, etc.)
-- Recipes shared by friends/family
+**2. Index Crawling (`crawl_index`)**
 
-#### Sitemaps
-
-Bulk import from recipe site sitemaps:
+Fetches an index page and extracts recipe links:
 
 ```yaml
-sources:
-  - type: sitemap
-    enabled: false  # Use with caution!
-    name: Recipe Site
-    url: https://example.com/sitemap.xml
-    allowlist:  # Only import URLs containing these
-      - /recipes/
-      - /dinner/
-    max_pages: 20  # Limit URLs to process
+- name: "Ottolenghi — Official recipes"
+  type: "crawl_index"
+  enabled: true
+  index_url: "https://ottolenghi.co.uk/pages/recipes"
+  allow_domains: ["ottolenghi.co.uk"]  # REQUIRED for crawling
+  max_pages: 50  # Maximum links to extract
 ```
 
-**⚠️ Use Carefully:**
-- Can import many recipes quickly
-- Always use `allowlist` to filter relevant URLs
-- Set reasonable `max_pages` limit
-- Test with small limits first
+**Best for:** Recipe archives, collection pages, category indexes
 
-### Settings (`config/settings.yaml`)
+**3. RSS with Crawl Fallback (`rss_or_crawl`)**
+
+Tries RSS feeds first, falls back to crawling if RSS fails:
 
 ```yaml
-mealie_url: http://mealie:9000
-max_new_recipes_per_run: 20
+- name: "RecipeTin Eats"
+  type: "rss_or_crawl"
+  enabled: true
+  rss_url_candidates:  # Try these RSS URLs in order
+    - "https://www.recipetineats.com/feed/"
+  crawl_fallback_url: "https://www.recipetineats.com/category/vegetarian-recipes/"
+  allow_domains: ["recipetineats.com"]
+  max_entries: 20  # For RSS
+  max_pages: 50    # For crawl fallback
 ```
 
-Most settings are controlled via environment variables (see `.env.example`).
+**Best for:** Sites where RSS might be unreliable
+
+**4. Standard RSS (`rss`)**
+
+Direct RSS feed URL:
+
+```yaml
+- name: "Minimalist Baker"
+  type: "rss"
+  enabled: true
+  rss_url: "https://minimalistbaker.com/feed/"
+  allow_domains: ["minimalistbaker.com"]
+  max_entries: 10
+```
+
+**5. URL Lists (`url_list`)**
+
+Static list of specific URLs:
+
+```yaml
+- name: "Family Favorites"
+  type: "url_list"
+  enabled: true
+  urls:
+    - "https://www.allrecipes.com/recipe/228823/classic-lasagna/"
+    - "https://www.foodnetwork.com/recipes/mac-and-cheese-123"
+  allow_domains: ["allrecipes.com", "foodnetwork.com"]  # Optional
+```
+
+**Best for:** Specific recipes, themed collections
+
+#### Crawling Best Practices
+
+**Rate Limiting:**
+- Default: 2 seconds between requests to same domain
+- Configurable via `RATE_LIMIT_SECONDS_PER_DOMAIN`
+- Prevents overwhelming recipe sites
+
+**Domain Filtering:**
+- `allow_domains` is **required** for crawling sources
+- Supports subdomains: `example.com` matches `www.example.com`
+- Supports wildcard: `.example.com` matches all subdomains
+
+**URL Normalization:**
+- Automatically removes tracking parameters (`utm_*`, `fbclid`, `gclid`)
+- Removes URL fragments (`#comments`)
+- Deduplicates identical recipes from different sources
 
 ### Environment Variables
 
@@ -175,53 +265,52 @@ MEALIE_BASE_URL=http://mealie:9000
 MEALIE_API_TOKEN=your-token-here
 
 # Sync behavior
-MEALIE_SYNC_INTERVAL_MINUTES=360  # 6 hours
-MEALIE_MAX_RECIPES_PER_RUN=20     # Limit per sync
+SYNC_INTERVAL_MINUTES=1440         # 24 hours (recommended default)
+MAX_NEW_RECIPES_PER_RUN=10         # Limit per sync (conservative)
+
+# Network & rate limiting
+REQUEST_TIMEOUT_SECONDS=30         # Timeout for requests
+RATE_LIMIT_SECONDS_PER_DOMAIN=2.0  # Min time between requests to same domain
+USER_AGENT=Mozilla/5.0...          # User agent for requests
+
+# Operational
+DRY_RUN=false                      # Test mode (true = no imports)
+JSON_LOGS=false                    # Structured logs for Loki (true = JSON)
 ```
+
+**Key Variables:**
+
+- `SYNC_INTERVAL_MINUTES`: How often to run sync (default: 1440 = daily)
+- `MAX_NEW_RECIPES_PER_RUN`: Safety limit (default: 10)
+- `RATE_LIMIT_SECONDS_PER_DOMAIN`: Politeness delay (default: 2.0s)
+- `DRY_RUN`: Test configuration without importing (default: false)
 
 ## Advanced Usage
 
-### Adding Multiple RSS Feeds
+### Testing Configuration with Dry Run
 
-To import from multiple blogs, add multiple RSS sources:
+Before importing real recipes, test your configuration:
 
-```yaml
-sources:
-  - type: rss
-    enabled: true
-    name: Blog 1
-    url: https://blog1.com/feed/
-    max_entries: 10
+```bash
+# 1. Edit .env
+cd stacks/apps/mealie-sync
+sudo nano .env
 
-  - type: rss
-    enabled: true
-    name: Blog 2
-    url: https://blog2.com/feed/
-    max_entries: 10
-```
+# 2. Enable dry run
+DRY_RUN=true
 
-The sync will collect URLs from all enabled sources before importing.
+# 3. Start service
+docker compose --profile food_sync up -d
 
-### Themed Collections
+# 4. Watch logs
+docker logs -f orion_mealie_sync
 
-Create curated collections with URL lists:
+# 5. Review discovered URLs (no imports happen)
+# Look for lines like: [DRY RUN] Would import recipe from: ...
 
-```yaml
-sources:
-  - type: url_list
-    enabled: true
-    name: Holiday Recipes
-    urls:
-      - https://example.com/thanksgiving-turkey
-      - https://example.com/christmas-cookies
-      - https://example.com/easter-brunch
-
-  - type: url_list
-    enabled: true
-    name: Quick Weeknight Dinners
-    urls:
-      - https://example.com/30-minute-pasta
-      - https://example.com/sheet-pan-chicken
+# 6. When satisfied, disable dry run
+sudo nano .env  # Set DRY_RUN=false
+docker compose --profile food_sync restart mealie-sync
 ```
 
 ### Adjusting Sync Frequency
@@ -264,10 +353,52 @@ docker ps | grep mealie
 curl http://localhost:9000/api/app/about
 ```
 
+**Verify network:**
+```bash
+# Check mealie-sync is on orion_apps network
+docker network inspect orion_apps
+
+# Service should be able to reach Mealie by container name
+docker exec orion_mealie_sync ping -c 2 mealie
+```
+
 **Verify API token:**
 1. Check token is set in `.env`
 2. Verify token is valid in Mealie settings
 3. Regenerate token if needed
+
+### "Failed to scrape recipe from URL"
+
+**Possible causes:**
+1. **Unsupported site** - Mealie can't scrape all recipe sites
+2. **Invalid URL** - URL doesn't point to a recipe page
+3. **Site blocking** - Site blocks scrapers or requires JavaScript
+4. **Network error** - Temporary connection issue
+5. **Rate limiting** - Too many requests to the site
+
+**Solutions:**
+- Try the URL manually in Mealie UI first
+- Check Mealie's supported sites list
+- Increase `RATE_LIMIT_SECONDS_PER_DOMAIN` in .env
+- Remove problematic URLs/sources from configuration
+- Check logs for specific error messages
+
+### Crawling Issues
+
+**"URL not in allowed domains"**
+- Check `allow_domains` in source configuration
+- Ensure domain matches exactly (case-insensitive)
+- Try adding subdomain wildcard: `.example.com`
+
+**"Timeout fetching URL"**
+- Increase `REQUEST_TIMEOUT_SECONDS` in .env (default: 30)
+- Site may be slow or temporarily down
+- Check network connectivity from container
+
+**"Rate limiting: waiting X seconds"**
+- This is normal - respects `RATE_LIMIT_SECONDS_PER_DOMAIN`
+- Increase value to be more polite to sites
+- Decrease value for faster (but less polite) crawling
 
 ### "Failed to scrape recipe from URL"
 
@@ -320,27 +451,49 @@ If too many recipes are being imported:
 
 ## Maintenance
 
-### View Imported URLs
+### View Import Statistics
 
 ```bash
-cat /srv/orion/internal/appdata/mealie-sync/data/imported_urls.txt
+# Check overall stats in logs
+docker logs orion_mealie_sync | grep "Total imported"
+
+# Or access SQLite database directly
+docker exec orion_mealie_sync sqlite3 /data/state.db \
+  "SELECT COUNT(*) as total_imports FROM imports"
 ```
 
-### View Sync State
+### View State Database
 
 ```bash
-cat /srv/orion/internal/appdata/mealie-sync/data/sync_state.json
+# View all imported recipes
+docker exec orion_mealie_sync sqlite3 /data/state.db \
+  "SELECT url, recipe_name, imported_at FROM imports ORDER BY imported_at DESC LIMIT 10"
+
+# View recent failures
+docker exec orion_mealie_sync sqlite3 /data/state.db \
+  "SELECT url, attempted_at, error_message FROM attempts WHERE success = 0 ORDER BY attempted_at DESC LIMIT 10"
+
+# View sync run history
+docker exec orion_mealie_sync sqlite3 /data/state.db \
+  "SELECT * FROM sync_runs ORDER BY started_at DESC LIMIT 5"
 ```
 
 ### Reset Import History
 
-⚠️ **Warning:** This will cause all recipes to be re-imported!
+⚠️ **Warning:** This will mark all recipes as new and may cause re-imports!
 
 ```bash
+# Stop service
 docker compose --profile food_sync down
-sudo rm /srv/orion/internal/appdata/mealie-sync/data/imported_urls.txt
+
+# Delete state database
+sudo rm /srv/orion/internal/appdata/mealie-sync/data/state.db
+
+# Restart service (creates fresh database)
 docker compose --profile food_sync up -d
 ```
+
+**Note:** Mealie will reject duplicate recipes (HTTP 409), so re-imports are safe but logged as failures.
 
 ### Check Logs
 
@@ -357,11 +510,18 @@ docker logs --since 1h orion_mealie_sync
 
 ### Update Configuration
 
-1. Edit `config/sources.yaml` or `config/settings.yaml`
-2. Restart service:
+1. Edit `config/recipe_sources.yaml`:
+   ```bash
+   cd stacks/apps/mealie-sync
+   sudo nano config/recipe_sources.yaml
+   ```
+
+2. Restart service to apply changes:
    ```bash
    docker compose --profile food_sync restart mealie-sync
    ```
+
+**Note:** Configuration is read on container start, so restart is required after edits.
 
 ## Best Practices
 

@@ -29,13 +29,19 @@ services:
       - MEALIE_BASE_URL=${MEALIE_BASE_URL:-http://mealie:9000}
       - MEALIE_API_TOKEN=${MEALIE_API_TOKEN}
       # Sync configuration
-      - SYNC_INTERVAL_MINUTES=${MEALIE_SYNC_INTERVAL_MINUTES:-360}
-      - MAX_NEW_RECIPES_PER_RUN=${MEALIE_MAX_RECIPES_PER_RUN:-20}
+      - SYNC_INTERVAL_MINUTES=${SYNC_INTERVAL_MINUTES:-1440}
+      - MAX_NEW_RECIPES_PER_RUN=${MAX_NEW_RECIPES_PER_RUN:-10}
+      # Network configuration
+      - REQUEST_TIMEOUT_SECONDS=${REQUEST_TIMEOUT_SECONDS:-30}
+      - RATE_LIMIT_SECONDS_PER_DOMAIN=${RATE_LIMIT_SECONDS_PER_DOMAIN:-2.0}
+      - USER_AGENT=${USER_AGENT:-Mozilla/5.0 (compatible; MealieRecipeSync/1.0)}
+      # Operational settings
+      - DRY_RUN=${DRY_RUN:-false}
+      - JSON_LOGS=${JSON_LOGS:-false}
     volumes:
-      # Configuration files
-      - ./config/sources.yaml:/config/sources.yaml:ro
-      - ./config/settings.yaml:/config/settings.yaml:ro
-      # State persistence (tracks imported recipes)
+      # Configuration files (recipe_sources.yaml or sources.yaml)
+      - ./config:/config:ro
+      # State persistence (SQLite database)
       - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/mealie-sync/data:/data
     networks:
       - orion_apps
