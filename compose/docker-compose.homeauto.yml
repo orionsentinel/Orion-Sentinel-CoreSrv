@@ -94,6 +94,8 @@ services:
     volumes:
       - ${HOMEAUTO_CONFIG_ROOT:-/srv/docker/homeauto}/homeassistant:/config
       - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "8123:8123"
     networks:
       - orion_homeauto_net
       - orion_backbone_net
