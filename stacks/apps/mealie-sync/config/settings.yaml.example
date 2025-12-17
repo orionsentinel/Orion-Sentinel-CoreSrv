@@ -1,0 +1,25 @@
+---
+# Mealie Recipe Sync - Settings Configuration
+# General settings for the recipe sync service
+
+# Mealie API connection (can be overridden by environment variables)
+mealie_url: http://mealie:9000
+# API token should be set via MEALIE_API_TOKEN environment variable
+
+# Sync behavior
+max_new_recipes_per_run: 20  # Maximum recipes to import in a single sync
+                             # Prevents overwhelming Mealie or source sites
+                             # Can be overridden by MAX_NEW_RECIPES_PER_RUN env var
+
+# Sync interval is set via SYNC_INTERVAL_MINUTES environment variable
+# Default: 360 minutes (6 hours)
+# Recommended ranges:
+#   - 360-1440 (6-24 hours) for RSS feeds
+#   - 10080 (weekly) for curated URL lists
+#   - 1440-4320 (1-3 days) for sitemaps
+
+# Notes:
+# - The sync runs continuously in a loop
+# - Each source's max_entries/max_pages setting controls batch size
+# - Already-imported recipes are automatically skipped
+# - Failed imports are logged but don't stop the sync process
