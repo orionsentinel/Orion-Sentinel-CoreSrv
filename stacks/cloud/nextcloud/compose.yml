@@ -1,0 +1,188 @@
+# Orion-Sentinel-CoreSrv Nextcloud Stack
+# Self-hosted Cloud Storage + Database + Redis + Cron
+#
+# Usage:
+#   ./scripts/orionctl up cloud --profile cloud
+#
+# Exposed at:
+#   - cloud.orion.lan
+
+services:
+  ############################
+  # NEXTCLOUD DATABASE (Postgres)
+  ############################
+
+  nextcloud-db:
+    image: postgres:16-alpine
+    container_name: orion_nextcloud_db
+    restart: unless-stopped
+    profiles:
+      - cloud
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - POSTGRES_DB=${NEXTCLOUD_DB_NAME:-nextcloud}
+      - POSTGRES_USER=${NEXTCLOUD_DB_USER:-nextcloud}
+      - POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/db/nextcloud:/var/lib/postgresql/data
+    networks:
+      - orion_nextcloud
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${NEXTCLOUD_DB_USER:-nextcloud} -d ${NEXTCLOUD_DB_NAME:-nextcloud}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # REDIS: Cache and File Locking
+  ############################
+
+  nextcloud-redis:
+    image: redis:7-alpine
+    container_name: orion_nextcloud_redis
+    restart: unless-stopped
+    profiles:
+      - cloud
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    command: redis-server --requirepass ${NEXTCLOUD_REDIS_PASSWORD:-redis-change-me}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/nextcloud-redis:/data
+    networks:
+      - orion_nextcloud
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  ############################
+  # NEXTCLOUD: Cloud Storage
+  ############################
+
+  nextcloud:
+    image: nextcloud:29-apache
+    container_name: orion_nextcloud
+    restart: unless-stopped
+    profiles:
+      - cloud
+    depends_on:
+      nextcloud-db:
+        condition: service_healthy
+      nextcloud-redis:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      # Database configuration
+      - POSTGRES_HOST=nextcloud-db
+      - POSTGRES_DB=${NEXTCLOUD_DB_NAME:-nextcloud}
+      - POSTGRES_USER=${NEXTCLOUD_DB_USER:-nextcloud}
+      - POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
+      # Redis configuration
+      - REDIS_HOST=nextcloud-redis
+      - REDIS_HOST_PASSWORD=${NEXTCLOUD_REDIS_PASSWORD:-redis-change-me}
+      # Admin account (first run only)
+      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER:-admin}
+      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
+      # Trusted domains
+      - NEXTCLOUD_TRUSTED_DOMAINS=cloud.${LOCAL_DOMAIN:-orion.lan}
+      # Reverse proxy settings
+      - TRUSTED_PROXIES=172.16.0.0/12
+      - OVERWRITEPROTOCOL=https
+      - OVERWRITEHOST=cloud.${LOCAL_DOMAIN:-orion.lan}
+      - OVERWRITECLIURL=https://cloud.${LOCAL_DOMAIN:-orion.lan}
+      # Performance tuning
+      - PHP_MEMORY_LIMIT=${NEXTCLOUD_PHP_MEMORY_LIMIT:-512M}
+      - PHP_UPLOAD_LIMIT=${NEXTCLOUD_PHP_UPLOAD_LIMIT:-10G}
+      # Enable APCu caching
+      - NEXTCLOUD_ENABLE_APCU=true
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/nextcloud:/var/www/html
+      - ${CLOUD_ROOT:-/srv/orion/internal}/nextcloud-data:/var/www/html/data
+    networks:
+      - orion_nextcloud
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost/status.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nextcloud.rule=Host(`cloud.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.nextcloud.entrypoints=websecure"
+      - "traefik.http.routers.nextcloud.tls=true"
+      - "traefik.http.routers.nextcloud.middlewares=nextcloud-headers,security-headers@file"
+      - "traefik.http.services.nextcloud.loadbalancer.server.port=80"
+      # Nextcloud-specific headers
+      - "traefik.http.middlewares.nextcloud-headers.headers.customFrameOptionsValue=SAMEORIGIN"
+      - "traefik.http.middlewares.nextcloud-headers.headers.customResponseHeaders.Strict-Transport-Security=15552000"
+      # WebDAV redirects
+      - "traefik.http.middlewares.nextcloud-redirect.redirectregex.permanent=true"
+      - "traefik.http.middlewares.nextcloud-redirect.redirectregex.regex=https://(.*)/.well-known/(card|cal)dav"
+      - "traefik.http.middlewares.nextcloud-redirect.redirectregex.replacement=https://$$1/remote.php/dav/"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  ############################
+  # NEXTCLOUD CRON: Background Jobs
+  ############################
+
+  nextcloud-cron:
+    image: nextcloud:29-apache
+    container_name: orion_nextcloud_cron
+    restart: unless-stopped
+    profiles:
+      - cloud
+    depends_on:
+      nextcloud:
+        condition: service_healthy
+    entrypoint: /cron.sh
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/nextcloud:/var/www/html
+      - ${CLOUD_ROOT:-/srv/orion/internal}/nextcloud-data:/var/www/html/data
+    networks:
+      - orion_nextcloud
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_nextcloud:
+    name: orion_nextcloud
+    driver: bridge
+  orion_proxy:
+    name: orion_proxy
+    external: true
