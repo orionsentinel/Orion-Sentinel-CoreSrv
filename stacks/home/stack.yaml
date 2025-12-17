@@ -1,11 +1,12 @@
 # Orion-Sentinel-CoreSrv Home Stack
-# Home Assistant (host networking) + Mosquitto + Zigbee2MQTT + HA Proxy
+# Home Assistant (host networking) + Node-RED + Mosquitto + Zigbee2MQTT + HA Proxy
 #
 # Usage:
 #   ./scripts/orionctl up home
 #
 # Exposed at:
 #   - home.orion.lan (Home Assistant via ha-proxy)
+#   - nodered.orion.lan (Node-RED)
 #   - zigbee.orion.lan (Zigbee2MQTT)
 #   - mqtt.orion.lan:8883 (MQTT over TLS)
 #
@@ -162,6 +163,55 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
+
+  ############################
+  # NODE-RED: Flow-based Automation
+  # Integrates with Home Assistant for advanced automation
+  ############################
+
+  nodered:
+    image: nodered/node-red:latest
+    container_name: orion_nodered
+    restart: unless-stopped
+    depends_on:
+      homeassistant:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - NODE_RED_ENABLE_PROJECTS=true
+      - NODE_RED_ENABLE_SAFE_MODE=false
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/nodered:/data
+    networks:
+      - orion_home
+      - orion_proxy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:1880"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nodered.rule=Host(`nodered.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.nodered.entrypoints=websecure"
+      - "traefik.http.routers.nodered.tls=true"
+      - "traefik.http.routers.nodered.middlewares=security-headers@file"
+      - "traefik.http.services.nodered.loadbalancer.server.port=1880"
+      # WebSocket support for Node-RED
+      - "traefik.http.routers.nodered-ws.rule=Host(`nodered.${LOCAL_DOMAIN:-orion.lan}`) && PathPrefix(`/comms`)"
+      - "traefik.http.routers.nodered-ws.entrypoints=websecure"
+      - "traefik.http.routers.nodered-ws.tls=true"
+      - "traefik.http.routers.nodered-ws.service=nodered"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 ############################
 # NETWORKS
