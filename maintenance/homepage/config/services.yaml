@@ -1,0 +1,187 @@
+---
+# Homepage Services Configuration
+# Configure service tiles and integrations
+# Documentation: https://gethomepage.dev/latest/configs/services/
+
+- Finance:
+    - Firefly III:
+        icon: firefly.png
+        href: https://firefly.orion.lan
+        description: Personal Finance Manager
+        server: docker-socket-proxy
+        container: orion_firefly
+        widget:
+          type: firefly
+          url: https://firefly.orion.lan
+          # Add your Personal Access Token here after setup
+          # key: your-api-key
+
+    - Firefly Importer:
+        icon: firefly.png
+        href: https://firefly-importer.orion.lan
+        description: Bank Data Importer
+        server: docker-socket-proxy
+        container: orion_firefly_importer
+
+- Cloud & Productivity:
+    - Nextcloud:
+        icon: nextcloud.png
+        href: https://cloud.orion.lan
+        description: Self-hosted Cloud Storage
+        server: docker-socket-proxy
+        container: orion_nextcloud
+        widget:
+          type: nextcloud
+          url: https://cloud.orion.lan
+          # Add your username and password after setup
+          # username: admin
+          # password: your-password
+
+    - Mealie:
+        icon: mealie.png
+        href: https://mealie.orion.lan
+        description: Recipe Manager
+        server: docker-socket-proxy
+        container: orion_mealie
+        widget:
+          type: mealie
+          url: https://mealie.orion.lan
+
+- Home Automation:
+    - Home Assistant:
+        icon: home-assistant.png
+        href: https://home.orion.lan
+        description: Smart Home Hub
+        widget:
+          type: homeassistant
+          url: https://home.orion.lan
+          # Add Long-Lived Access Token after setup
+          # key: your-long-lived-token
+
+    - Node-RED:
+        icon: nodered.png
+        href: https://nodered.orion.lan
+        description: Flow-based Automation
+        server: docker-socket-proxy
+        container: orion_nodered
+
+    - Zigbee2MQTT:
+        icon: zigbee2mqtt.png
+        href: https://zigbee.orion.lan
+        description: Zigbee Gateway
+        server: docker-socket-proxy
+        container: orion_zigbee2mqtt
+
+- Media & Entertainment:
+    - Jellyfin:
+        icon: jellyfin.png
+        href: https://jellyfin.orion.lan
+        description: Media Server
+        widget:
+          type: jellyfin
+          url: https://jellyfin.orion.lan
+          # Add API key after setup
+          # key: your-api-key
+
+    - Jellyseerr:
+        icon: jellyseerr.png
+        href: https://requests.orion.lan
+        description: Media Requests
+        widget:
+          type: jellyseerr
+          url: https://requests.orion.lan
+          # Add API key after setup
+          # key: your-api-key
+
+    - Sonarr:
+        icon: sonarr.png
+        href: https://sonarr.orion.lan
+        description: TV Shows Management
+        server: docker-socket-proxy
+        container: orion_sonarr
+        widget:
+          type: sonarr
+          url: https://sonarr.orion.lan
+          # Add API key after setup
+          # key: your-api-key
+
+    - Radarr:
+        icon: radarr.png
+        href: https://radarr.orion.lan
+        description: Movies Management
+        server: docker-socket-proxy
+        container: orion_radarr
+        widget:
+          type: radarr
+          url: https://radarr.orion.lan
+          # Add API key after setup
+          # key: your-api-key
+
+- Monitoring & Observability:
+    - Grafana:
+        icon: grafana.png
+        href: https://grafana.orion.lan
+        description: Metrics Dashboards
+        server: docker-socket-proxy
+        container: orion_grafana
+        widget:
+          type: grafana
+          url: https://grafana.orion.lan
+          username: ${GRAFANA_ADMIN_USER}
+          password: ${GRAFANA_ADMIN_PASSWORD}
+
+    - Prometheus:
+        icon: prometheus.png
+        href: https://prometheus.orion.lan
+        description: Metrics Database
+        server: docker-socket-proxy
+        container: orion_prometheus
+        widget:
+          type: prometheus
+          url: https://prometheus.orion.lan
+
+    - Uptime Kuma:
+        icon: uptime-kuma.png
+        href: https://uptime.orion.lan
+        description: Uptime Monitoring
+        server: docker-socket-proxy
+        container: orion_uptime_kuma
+        widget:
+          type: uptimekuma
+          url: https://uptime.orion.lan
+          # Add slug after setup (from Status Pages)
+          # slug: your-status-page-slug
+
+    - Loki:
+        icon: loki.png
+        description: Log Aggregation
+        server: docker-socket-proxy
+        container: orion_loki
+
+- Network & Infrastructure:
+    - Traefik:
+        icon: traefik.png
+        href: https://traefik.orion.lan
+        description: Reverse Proxy
+        server: docker-socket-proxy
+        container: orion_traefik
+        widget:
+          type: traefik
+          url: https://traefik.orion.lan
+
+    - NetAlertX:
+        icon: https://raw.githubusercontent.com/jokob-sk/NetAlertX/main/front/plugins/website_monitor/icon.svg
+        href: https://netmap.orion.lan
+        description: Network Device Mapping
+        server: docker-socket-proxy
+        container: orion_netalertx
+
+    - Pi-hole:
+        icon: pi-hole.png
+        href: https://pihole.orion.lan
+        description: DNS & Ad Blocking
+        widget:
+          type: pihole
+          url: https://pihole.orion.lan
+          # Add API key after setup
+          # key: your-api-key

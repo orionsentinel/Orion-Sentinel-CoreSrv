@@ -1,0 +1,29 @@
+---
+# Homepage Settings Configuration
+# General homepage configuration and layout
+# Documentation: https://gethomepage.dev/latest/configs/settings/
+
+title: Orion Sentinel Dashboard
+favicon: https://raw.githubusercontent.com/gethomepage/homepage/main/public/android-chrome-192x192.png
+theme: dark
+color: slate
+headerStyle: boxed
+layout:
+  Finance:
+    style: row
+    columns: 3
+  Cloud & Productivity:
+    style: row
+    columns: 3
+  Home Automation:
+    style: row
+    columns: 3
+  Media & Entertainment:
+    style: row
+    columns: 4
+  Monitoring & Observability:
+    style: row
+    columns: 4
+  Network & Infrastructure:
+    style: row
+    columns: 3

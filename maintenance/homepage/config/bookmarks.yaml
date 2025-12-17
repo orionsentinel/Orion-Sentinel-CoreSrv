@@ -1,0 +1,31 @@
+---
+# Homepage Bookmarks Configuration
+# Quick links to external resources
+# Documentation: https://gethomepage.dev/latest/configs/bookmarks/
+
+- Development:
+    - GitHub:
+        - abbr: GH
+          href: https://github.com
+    - Docker Hub:
+        - abbr: DH
+          href: https://hub.docker.com
+
+- Documentation:
+    - Orion Sentinel Docs:
+        - abbr: OR
+          href: https://github.com/orionsentinel/Orion-Sentinel-CoreSrv
+    - Homepage Docs:
+        - abbr: HP
+          href: https://gethomepage.dev
+    - Traefik Docs:
+        - abbr: TR
+          href: https://doc.traefik.io/traefik/
+
+- Home Lab:
+    - r/selfhosted:
+        - abbr: SH
+          href: https://reddit.com/r/selfhosted
+    - r/homelab:
+        - abbr: HL
+          href: https://reddit.com/r/homelab

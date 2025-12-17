@@ -1,0 +1,32 @@
+---
+# Homepage Widgets Configuration
+# Configure homepage widgets for system monitoring
+# Documentation: https://gethomepage.dev/latest/widgets/
+
+- logo:
+    icon: https://raw.githubusercontent.com/gethomepage/homepage/main/public/android-chrome-192x192.png
+
+- search:
+    provider: google
+    target: _blank
+
+- datetime:
+    text_size: xl
+    format:
+      timeStyle: short
+      dateStyle: short
+      hourCycle: h23
+
+- resources:
+    cpu: true
+    memory: true
+    disk: /
+    uptime: true
+
+- openmeteo:
+    label: Amsterdam
+    latitude: 52.37
+    longitude: 4.89
+    timezone: Europe/Amsterdam
+    units: metric
+    cache: 5

@@ -1,0 +1,8 @@
+---
+# Homepage Docker Integration Configuration
+# Configure Docker container widgets and stats
+# Documentation: https://gethomepage.dev/latest/widgets/services/docker/
+
+# Docker socket access via socket proxy
+docker-socket-proxy:
+  socket: http://docker-socket-proxy:2375

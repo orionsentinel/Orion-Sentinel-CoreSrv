@@ -1,0 +1,211 @@
+# Orion-Sentinel-CoreSrv Firefly III Stack
+# Personal Finance Manager + Database + Data Importer + Cron
+#
+# Usage:
+#   ./scripts/orionctl up apps --profile finance
+#
+# Exposed at:
+#   - firefly.orion.lan
+#   - firefly-importer.orion.lan
+
+services:
+  ############################
+  # FIREFLY III DATABASE (MariaDB)
+  ############################
+
+  firefly-db:
+    image: mariadb:11.4
+    container_name: orion_firefly_db
+    restart: unless-stopped
+    profiles:
+      - finance
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+      - MYSQL_DATABASE=${FIREFLY_DB_NAME:-firefly}
+      - MYSQL_USER=${FIREFLY_DB_USER:-firefly}
+      - MYSQL_PASSWORD=${FIREFLY_DB_PASSWORD}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/db/firefly:/var/lib/mysql
+    networks:
+      - orion_firefly
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # FIREFLY III: Finance Manager
+  ############################
+
+  firefly:
+    image: fireflyiii/core:version-6.1.21
+    container_name: orion_firefly
+    restart: unless-stopped
+    profiles:
+      - finance
+    depends_on:
+      firefly-db:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - APP_KEY=${FIREFLY_APP_KEY}
+      - DB_CONNECTION=mysql
+      - DB_HOST=firefly-db
+      - DB_PORT=3306
+      - DB_DATABASE=${FIREFLY_DB_NAME:-firefly}
+      - DB_USERNAME=${FIREFLY_DB_USER:-firefly}
+      - DB_PASSWORD=${FIREFLY_DB_PASSWORD}
+      - APP_URL=https://firefly.${LOCAL_DOMAIN:-orion.lan}
+      - TRUSTED_PROXIES=**
+      - LOG_CHANNEL=stdout
+      - APP_LOG_LEVEL=notice
+      - AUDIT_LOG_LEVEL=emergency
+      # Security
+      - AUTHENTICATION_GUARD=web
+      - AUTHENTICATION_GUARD_HEADER=REMOTE_USER
+      - AUTHENTICATION_GUARD_EMAIL=
+      # Optional: Mail configuration
+      - MAIL_MAILER=${FIREFLY_MAIL_MAILER:-log}
+      - MAIL_HOST=${FIREFLY_MAIL_HOST:-}
+      - MAIL_PORT=${FIREFLY_MAIL_PORT:-587}
+      - MAIL_FROM=${FIREFLY_MAIL_FROM:-changeme@example.com}
+      - MAIL_USERNAME=${FIREFLY_MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${FIREFLY_MAIL_PASSWORD:-}
+      - MAIL_ENCRYPTION=${FIREFLY_MAIL_ENCRYPTION:-tls}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/firefly/upload:/var/www/html/storage/upload
+    networks:
+      - orion_firefly
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.firefly.rule=Host(`firefly.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.firefly.entrypoints=websecure"
+      - "traefik.http.routers.firefly.tls=true"
+      - "traefik.http.routers.firefly.middlewares=security-headers@file"
+      - "traefik.http.services.firefly.loadbalancer.server.port=8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # FIREFLY III CRON: Scheduled Tasks
+  ############################
+
+  firefly-cron:
+    image: fireflyiii/core:version-6.1.21
+    container_name: orion_firefly_cron
+    restart: unless-stopped
+    profiles:
+      - finance
+    depends_on:
+      firefly:
+        condition: service_healthy
+    entrypoint: /usr/local/bin/entrypoint.sh
+    command: cron
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - APP_KEY=${FIREFLY_APP_KEY}
+      - DB_CONNECTION=mysql
+      - DB_HOST=firefly-db
+      - DB_PORT=3306
+      - DB_DATABASE=${FIREFLY_DB_NAME:-firefly}
+      - DB_USERNAME=${FIREFLY_DB_USER:-firefly}
+      - DB_PASSWORD=${FIREFLY_DB_PASSWORD}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/firefly/upload:/var/www/html/storage/upload
+    networks:
+      - orion_firefly
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # FIREFLY III DATA IMPORTER
+  ############################
+
+  firefly-importer:
+    image: fireflyiii/data-importer:version-1.5.8
+    container_name: orion_firefly_importer
+    restart: unless-stopped
+    profiles:
+      - finance
+    depends_on:
+      firefly:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - FIREFLY_III_URL=http://firefly:8080
+      # Note: Generate token in Firefly UI first (Options -> Profile -> OAuth)
+      # Leave empty on first run, then add token and restart importer
+      - FIREFLY_III_ACCESS_TOKEN=${FIREFLY_IMPORTER_TOKEN:-}
+      - VANITY_URL=https://firefly-importer.${LOCAL_DOMAIN:-orion.lan}
+      - TRUSTED_PROXIES=**
+      - LOG_LEVEL=notice
+      # Optional: Nordigen (GoCardless) integration for bank imports
+      - NORDIGEN_ID=${FIREFLY_NORDIGEN_ID:-}
+      - NORDIGEN_KEY=${FIREFLY_NORDIGEN_KEY:-}
+      # Optional: Spectre integration
+      - SPECTRE_APP_ID=${FIREFLY_SPECTRE_APP_ID:-}
+      - SPECTRE_SECRET=${FIREFLY_SPECTRE_SECRET:-}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/firefly-importer:/import
+    networks:
+      - orion_firefly
+      - orion_proxy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.firefly-importer.rule=Host(`firefly-importer.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.firefly-importer.entrypoints=websecure"
+      - "traefik.http.routers.firefly-importer.tls=true"
+      - "traefik.http.routers.firefly-importer.middlewares=security-headers@file"
+      - "traefik.http.services.firefly-importer.loadbalancer.server.port=8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_firefly:
+    name: orion_firefly
+    driver: bridge
+  orion_proxy:
+    name: orion_proxy
+    external: true

@@ -1,30 +1,73 @@
 # Orion-Sentinel-CoreSrv Portal Stack
-# Homepage Dashboard
+# Homepage Dashboard + Homearr (profile-selectable) + Docker Socket Proxy
 #
 # Usage:
-#   ./scripts/orionctl up portal
+#   ./scripts/orionctl up portal --profile portal_homepage  # Start Homepage (default)
+#   ./scripts/orionctl up portal --profile portal_homearr   # Start Homearr instead
 #
 # Exposed at:
-#   - portal.orion.lan
+#   - portal.orion.lan (Homepage or Homearr depending on profile)
 
 services:
   ############################
-  # HOMEPAGE: Dashboard
+  # DOCKER SOCKET PROXY
+  # Provides secure, read-only access to Docker socket
+  ############################
+
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: orion_docker_socket_proxy
+    restart: unless-stopped
+    profiles:
+      - portal_homepage
+      - portal_homearr
+    environment:
+      - CONTAINERS=1  # Allow access to container information
+      - SERVICES=1    # Allow access to service information
+      - TASKS=1       # Allow access to task information
+      - NETWORKS=0    # Deny access to network information
+      - VOLUMES=0     # Deny access to volume information
+      - IMAGES=1      # Allow access to image information
+      - INFO=1        # Allow access to Docker info
+      - POST=0        # Deny POST operations (read-only)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - orion_portal_internal
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /run
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  ############################
+  # HOMEPAGE: Dashboard (Default)
   ############################
 
   homepage:
     image: ghcr.io/gethomepage/homepage:v0.9.10
     container_name: orion_homepage
     restart: unless-stopped
+    profiles:
+      - portal_homepage
+    depends_on:
+      - docker-socket-proxy
     environment:
       - TZ=${TZ:-Europe/Amsterdam}
       - PUID=${ORION_UID:-1000}
       - PGID=${ORION_GID:-1000}
     volumes:
       - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/homepage:/app/config
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Note: Docker socket access is now via docker-socket-proxy for security
+      # Previously mounted /var/run/docker.sock directly (less secure)
     networks:
       - orion_proxy
+      - orion_portal_internal
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -46,11 +89,58 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  ############################
+  # HOMARR: Alternative Dashboard
+  ############################
+
+  homearr:
+    image: ghcr.io/ajnart/homarr:latest
+    container_name: orion_homearr
+    restart: unless-stopped
+    profiles:
+      - portal_homearr
+    depends_on:
+      - docker-socket-proxy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - BASE_URL=portal.${LOCAL_DOMAIN:-orion.lan}
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/homearr/configs:/app/data/configs
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/homearr/data:/data
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/homearr/icons:/app/public/icons
+    networks:
+      - orion_proxy
+      - orion_portal_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7575"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homearr.rule=Host(`portal.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.homearr.entrypoints=websecure"
+      - "traefik.http.routers.homearr.tls=true"
+      - "traefik.http.routers.homearr.middlewares=security-headers@file"
+      - "traefik.http.services.homearr.loadbalancer.server.port=7575"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 ############################
 # NETWORKS
 ############################
 
 networks:
+  orion_portal_internal:
+    name: orion_portal_internal
+    driver: bridge
+    internal: true  # Isolated network for socket proxy communication
   orion_proxy:
     name: orion_proxy
     external: true

@@ -1,0 +1,107 @@
+# Orion-Sentinel-CoreSrv Network Mapping Stack
+# NetAlertX (formerly Pi.Alert) - Network Device Discovery & Inventory
+#
+# Usage:
+#   ./scripts/orionctl up observability --profile net_map
+#
+# Exposed at:
+#   - netmap.orion.lan
+#
+# NOTE: Requires host network mode for network scanning capabilities
+
+services:
+  ############################
+  # NETALERTX: Network Device Mapping
+  ############################
+
+  netalertx:
+    image: jokobsk/netalertx:latest
+    container_name: orion_netalertx
+    restart: unless-stopped
+    profiles:
+      - net_map
+    network_mode: host
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      # Scan interval in minutes (default: 5)
+      - SCAN_INTERVAL=${NETALERTX_SCAN_INTERVAL:-5}
+      # Network subnet to scan (auto-detect if not set)
+      - SCAN_SUBNET=${NETALERTX_SCAN_SUBNET:-}
+      # Port for web interface
+      - PORT=20211
+    volumes:
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/netalertx/config:/app/config
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/netalertx/db:/app/db
+    # Required capabilities for network scanning
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:20211"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # NETMAP PROXY: Bridge for Traefik
+  # Since NetAlertX runs in host mode, we need a proxy for Traefik
+  ############################
+
+  netmap-proxy:
+    image: nginx:alpine
+    container_name: orion_netmap_proxy
+    restart: unless-stopped
+    profiles:
+      - net_map
+    depends_on:
+      netalertx:
+        condition: service_healthy
+    volumes:
+      - type: tmpfs
+        target: /tmp
+      - type: bind
+        source: ./nginx.conf
+        target: /etc/nginx/nginx.conf
+        read_only: true
+    networks:
+      - orion_proxy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.netmap.rule=Host(`netmap.${LOCAL_DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.netmap.entrypoints=websecure"
+      - "traefik.http.routers.netmap.tls=true"
+      - "traefik.http.routers.netmap.middlewares=security-headers@file"
+      - "traefik.http.services.netmap.loadbalancer.server.port=80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_proxy:
+    name: orion_proxy
+    external: true

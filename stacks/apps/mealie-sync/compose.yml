@@ -1,0 +1,57 @@
+# Orion-Sentinel-CoreSrv Mealie Recipe Sync
+# Automated recipe importing from RSS feeds, URL lists, and sitemaps
+#
+# Usage:
+#   ./scripts/orionctl up apps --profile food_sync
+#
+# Configuration:
+#   - Edit config/sources.yaml to add recipe sources
+#   - Edit config/settings.yaml for general settings
+#   - Set MEALIE_API_TOKEN environment variable
+
+services:
+  ############################
+  # MEALIE RECIPE SYNC
+  ############################
+
+  mealie-sync:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: orion/mealie-sync:latest
+    container_name: orion_mealie_sync
+    restart: unless-stopped
+    profiles:
+      - food_sync
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      # Mealie API configuration
+      - MEALIE_BASE_URL=${MEALIE_BASE_URL:-http://mealie:9000}
+      - MEALIE_API_TOKEN=${MEALIE_API_TOKEN}
+      # Sync configuration
+      - SYNC_INTERVAL_MINUTES=${MEALIE_SYNC_INTERVAL_MINUTES:-360}
+      - MAX_NEW_RECIPES_PER_RUN=${MEALIE_MAX_RECIPES_PER_RUN:-20}
+    volumes:
+      # Configuration files
+      - ./config/sources.yaml:/config/sources.yaml:ro
+      - ./config/settings.yaml:/config/settings.yaml:ro
+      # State persistence (tracks imported recipes)
+      - ${ORION_INTERNAL_ROOT:-/srv/orion/internal}/appdata/mealie-sync/data:/data
+    networks:
+      - orion_apps
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_apps:
+    name: orion_apps
+    external: true

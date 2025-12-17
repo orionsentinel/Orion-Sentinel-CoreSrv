@@ -23,15 +23,21 @@ include:
     env_file: .env
   - path: stacks/observability/stack.yaml
     env_file: .env
+  - path: stacks/observability/netmap/compose.yml
+    env_file: .env
   - path: stacks/home/stack.yaml
     env_file: .env
   - path: stacks/apps/stack.yaml
     env_file: .env
+  - path: stacks/apps/firefly/compose.yml
+    env_file: .env
+  - path: stacks/apps/mealie-sync/compose.yml
+    env_file: .env
+  - path: stacks/cloud/nextcloud/compose.yml
+    env_file: .env
   - path: stacks/portal/stack.yaml
     env_file: .env
 
-# Shared networks created by the ingress stack
-networks:
-  orion_proxy:
-    name: orion_proxy
-    driver: bridge
+# The orion_proxy network is created by the ingress stack (traefik.yaml)
+# Other networks are created by their respective stacks as needed
+

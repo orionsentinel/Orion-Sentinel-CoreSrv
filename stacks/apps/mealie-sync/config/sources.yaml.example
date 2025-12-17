@@ -1,0 +1,79 @@
+---
+# Mealie Recipe Sync - Source Configuration
+# Configure recipe sources: RSS feeds, URL lists, and sitemaps
+#
+# Each source can be enabled/disabled individually
+# Documentation: See README.md for detailed configuration options
+
+sources:
+  # Example 1: RSS Feed from a recipe blog
+  - type: rss
+    enabled: true
+    name: Minimalist Baker
+    url: https://minimalistbaker.com/feed/
+    max_entries: 10  # Number of latest entries to check
+
+  # Example 2: Another popular recipe blog
+  - type: rss
+    enabled: true
+    name: Budget Bytes
+    url: https://www.budgetbytes.com/feed/
+    max_entries: 10
+
+  # Example 3: URL list - manually curated recipes
+  - type: url_list
+    enabled: true
+    name: Curated Recipe Collection
+    urls:
+      - https://www.allrecipes.com/recipe/228823/classic-lasagna/
+      - https://www.foodnetwork.com/recipes/alton-brown/homemade-mac-and-cheese-recipe-1911679
+      - https://www.seriouseats.com/recipes/2010/09/perfect-chocolate-chip-cookies-recipe.html
+
+  # Example 4: Sitemap with allowlist
+  # Only imports URLs containing specific keywords
+  - type: sitemap
+    enabled: false  # Disabled by default - use with caution
+    name: Recipe Site Sitemap
+    url: https://example.com/sitemap.xml
+    allowlist:
+      - /recipes/
+      - /dinner/
+      - /desserts/
+    max_pages: 20  # Maximum URLs to process from sitemap
+
+  # Additional RSS feed examples (disabled by default)
+  - type: rss
+    enabled: false
+    name: Serious Eats
+    url: https://www.seriouseats.com/recipes.rss
+    max_entries: 15
+
+  - type: rss
+    enabled: false
+    name: Cookie and Kate
+    url: https://cookieandkate.com/feed/
+    max_entries: 10
+
+  - type: rss
+    enabled: false
+    name: Gimme Some Oven
+    url: https://www.gimmesomeoven.com/feed/
+    max_entries: 10
+
+# Tips for adding your own sources:
+#
+# RSS Feeds:
+#   - Most recipe blogs have RSS feeds (usually /feed/ or /rss/)
+#   - Check the website footer or look for RSS icons
+#   - Test feeds with a feed reader first
+#
+# URL Lists:
+#   - Best for specific recipes you want to save
+#   - Great for organizing themed collections
+#   - URLs must be from sites Mealie can scrape
+#
+# Sitemaps:
+#   - Use sparingly to avoid overwhelming your Mealie instance
+#   - Always use allowlist to filter relevant recipes
+#   - Set reasonable max_pages limit
+#   - Test with small limits first
