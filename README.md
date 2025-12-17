@@ -29,8 +29,11 @@ Access Jellyfin at `http://localhost:8096` - you're done!
 |--------|----------|-------------|
 | **Core Media** | Jellyfin, Sonarr, Radarr, qBittorrent, Prowlarr, Jellyseerr | Media streaming & automation |
 | **Traefik** | Traefik, Authelia, Redis | Reverse proxy with HTTPS & SSO |
-| **Observability** | Prometheus, Grafana, Loki, Promtail, Uptime Kuma | Monitoring & alerting |
-| **Home Automation** | Home Assistant, Mosquitto, Zigbee2MQTT, Mealie | Smart home & IoT |
+| **Observability** | Prometheus, Grafana, Loki, Promtail, Uptime Kuma, NetAlertX | Monitoring, alerting & network mapping |
+| **Home Automation** | Home Assistant, Node-RED, Mosquitto, Zigbee2MQTT, Mealie | Smart home, IoT & automation |
+| **Finance** | Firefly III | Personal finance & budget management |
+| **Cloud** | Nextcloud | Self-hosted file sync & collaboration |
+| **Portal** | Homepage / Homarr | Unified dashboard (profile-selectable) |
 | **NVR** | Frigate | Camera recording with object detection |
 
 ## Modular Architecture
@@ -587,6 +590,96 @@ Store backups securely:
 - Password manager (1Password, Bitwarden)
 - Encrypted USB drive
 - Encrypted cloud storage
+
+## Optional Services & Profiles
+
+Orion Sentinel CoreSrv now includes optional services that can be enabled via Docker Compose profiles. These extend the core functionality with additional capabilities.
+
+### Available Profiles
+
+**Finance Management:**
+```bash
+# Start Firefly III for personal finance tracking
+docker compose --profile finance up -d
+```
+- **Firefly III**: Budget management, expense tracking, bank integrations
+- **Access**: https://firefly.orion.lan
+- **Docs**: `stacks/apps/firefly/README.md`
+
+**Cloud Storage:**
+```bash
+# Start Nextcloud for self-hosted file sync
+docker compose --profile cloud up -d
+```
+- **Nextcloud**: File sync, calendar, contacts, collaboration
+- **Access**: https://cloud.orion.lan
+- **Docs**: `stacks/cloud/nextcloud/README.md`
+
+**Dashboard (choose one):**
+```bash
+# Homepage (recommended) - widget-rich dashboard
+docker compose --profile portal_homepage up -d
+
+# Homarr (alternative) - visual dashboard with drag-and-drop
+docker compose --profile portal_homearr up -d
+```
+- **Access**: https://portal.orion.lan
+- **Docs**: `stacks/portal/README.md`
+- **Note**: Only run one at a time (same URL)
+
+**Network Monitoring:**
+```bash
+# Start NetAlertX for network device discovery
+docker compose --profile net_map up -d
+```
+- **NetAlertX**: Network scanner, device inventory, alerts for new devices
+- **Access**: https://netmap.orion.lan
+- **Docs**: `stacks/observability/netmap/README.md`
+
+**Recipe Automation:**
+```bash
+# Start Mealie Recipe Sync (requires Mealie to be running)
+docker compose --profile food_sync up -d
+```
+- **Mealie Sync**: Automatically import recipes from RSS feeds and URL lists
+- **No web UI** (background service)
+- **Docs**: `stacks/apps/mealie-sync/README.md`
+
+### Quick Start Examples
+
+**Minimal setup (dashboard only):**
+```bash
+./scripts/orionctl up ingress
+docker compose --profile portal_homepage up -d
+```
+
+**Personal productivity (finance + cloud + dashboard):**
+```bash
+./scripts/orionctl up ingress
+docker compose --profile finance --profile cloud --profile portal_homepage up -d
+```
+
+**Full stack with all optional services:**
+```bash
+./scripts/orionctl up all
+docker compose \
+  --profile finance \
+  --profile cloud \
+  --profile portal_homepage \
+  --profile net_map \
+  --profile food_sync \
+  up -d
+```
+
+### Comprehensive Profile Documentation
+
+See **[docs/PROFILES.md](docs/PROFILES.md)** for:
+- Detailed profile descriptions
+- Configuration requirements
+- Environment variables
+- Dependencies
+- Troubleshooting
+- Best practices
 
 ## Troubleshooting
 
