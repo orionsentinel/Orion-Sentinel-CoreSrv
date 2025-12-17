@@ -7,8 +7,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application
-COPY sync.py .
+# Copy application modules
+COPY *.py .
 
 # Create directories for config and data
 RUN mkdir -p /config /data
@@ -22,4 +22,4 @@ USER appuser
 ENV PYTHONUNBUFFERED=1
 
 # Run the sync script
-CMD ["python", "-u", "sync.py"]
+CMD ["python", "-u", "main.py"]

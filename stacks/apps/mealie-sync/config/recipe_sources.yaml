@@ -1,0 +1,148 @@
+---
+# Mealie Recipe Sync - Recipe Source Configuration
+# 10 curated sources for recipe importing
+#
+# Each source specifies:
+#   - name: Human-readable source name
+#   - type: Source discovery method (rss_suffix, crawl_index, rss_or_crawl)
+#   - Configuration specific to type (index_url, rss_suffix, allow_domains, etc.)
+#
+# All sources are enabled by default. Set enabled: false to disable.
+
+sources:
+  # ========================================================================
+  # Source 1: Ottolenghi - Official recipes
+  # ========================================================================
+  - name: "Ottolenghi — Official recipes"
+    type: "crawl_index"
+    enabled: true
+    index_url: "https://ottolenghi.co.uk/pages/recipes"
+    allow_domains: ["ottolenghi.co.uk"]
+    max_pages: 50
+
+  # ========================================================================
+  # Source 2: The Guardian - Ottolenghi recipes (RSS)
+  # ========================================================================
+  - name: "The Guardian — Ottolenghi recipes (RSS)"
+    type: "rss_suffix"
+    enabled: true
+    index_url: "https://www.theguardian.com/food/series/yotam-ottolenghi-recipes"
+    rss_suffix: "/rss"
+    allow_domains: ["theguardian.com"]
+    max_entries: 20
+
+  # ========================================================================
+  # Source 3: The Happy Foodie - Recipes archive
+  # ========================================================================
+  - name: "The Happy Foodie — Recipes archive"
+    type: "crawl_index"
+    enabled: true
+    index_url: "https://thehappyfoodie.co.uk/recipes/"
+    allow_domains: ["thehappyfoodie.co.uk"]
+    max_pages: 50
+
+  # ========================================================================
+  # Source 4: Meera Sodha - The Guardian The New Vegan (RSS)
+  # ========================================================================
+  - name: "Meera Sodha — The Guardian The New Vegan (RSS)"
+    type: "rss_suffix"
+    enabled: true
+    index_url: "https://www.theguardian.com/food/series/the-new-vegan"
+    rss_suffix: "/rss"
+    allow_domains: ["theguardian.com"]
+    max_entries: 20
+
+  # ========================================================================
+  # Source 5: Akis Petretzikis - Recipe categories
+  # ========================================================================
+  - name: "Akis Petretzikis — Recipe categories"
+    type: "crawl_index"
+    enabled: true
+    index_url: "https://akispetretzikis.com/en/all-recipe-categories"
+    allow_domains: ["akispetretzikis.com"]
+    max_pages: 50
+
+  # ========================================================================
+  # Source 6: RecipeTin Eats - Main feed then fallback crawl
+  # ========================================================================
+  - name: "RecipeTin Eats — Main feed then fallback crawl"
+    type: "rss_or_crawl"
+    enabled: true
+    rss_url_candidates:
+      - "https://www.recipetineats.com/feed/"
+    crawl_fallback_url: "https://www.recipetineats.com/category/vegetarian-recipes/"
+    allow_domains: ["recipetineats.com"]
+    max_entries: 20
+    max_pages: 50
+
+  # ========================================================================
+  # Source 7: Great British Chefs - Middle Eastern collection
+  # ========================================================================
+  - name: "Great British Chefs — Middle Eastern collection"
+    type: "crawl_index"
+    enabled: true
+    index_url: "https://www.greatbritishchefs.com/collections/middle-eastern-recipes"
+    allow_domains: ["greatbritishchefs.com"]
+    max_pages: 50
+
+  # ========================================================================
+  # Source 8: BBC Good Food - Middle Eastern collection
+  # ========================================================================
+  - name: "BBC Good Food — Middle Eastern collection"
+    type: "crawl_index"
+    enabled: true
+    index_url: "https://www.bbcgoodfood.com/recipes/collection/middle-eastern-recipes"
+    allow_domains: ["bbcgoodfood.com"]
+    max_pages: 50
+
+  # ========================================================================
+  # Source 9: The Mediterranean Dish - Recipes index
+  # ========================================================================
+  - name: "The Mediterranean Dish — Recipes index"
+    type: "rss_or_crawl"
+    enabled: true
+    rss_url_candidates:
+      - "https://www.themediterraneandish.com/feed/"
+    crawl_fallback_url: "https://www.themediterraneandish.com/recipes/"
+    allow_domains: ["themediterraneandish.com"]
+    max_entries: 20
+    max_pages: 50
+
+  # ========================================================================
+  # Source 10: Serious Eats - Middle Eastern recipes
+  # ========================================================================
+  - name: "Serious Eats — Middle Eastern recipes"
+    type: "crawl_index"
+    enabled: true
+    index_url: "https://www.seriouseats.com/middle-eastern-recipes-5117255"
+    allow_domains: ["seriouseats.com"]
+    max_pages: 50
+
+# ============================================================================
+# CONFIGURATION NOTES
+# ============================================================================
+#
+# Crawling Best Practices:
+#   - Rate limiting is enforced (default: 2 seconds per domain)
+#   - Max pages limits prevent excessive crawling
+#   - Only URLs matching allow_domains are processed
+#   - URL normalization removes tracking parameters
+#
+# To Add More Sources:
+#   1. Identify source type (rss_suffix, crawl_index, or rss_or_crawl)
+#   2. Add to this list with appropriate configuration
+#   3. Set enabled: true
+#   4. Monitor logs for successful imports
+#
+# To Disable a Source:
+#   - Set enabled: false for that source
+#   - Or comment out the entire source block
+#
+# Source Types:
+#   - rss_suffix: Adds /rss (or custom suffix) to index_url
+#   - crawl_index: Crawls an index page for recipe links
+#   - rss_or_crawl: Tries RSS first, falls back to crawling
+#   - rss: Direct RSS feed URL (not used in these 10 sources)
+#   - url_list: Static list of URLs (not used in these 10 sources)
+#
+# ============================================================================
