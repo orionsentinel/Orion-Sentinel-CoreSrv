@@ -10,7 +10,7 @@
 services:
   # Simple web service for testing
   uptime-kuma-smoke:
-    image: louislam/uptime-kuma:1.23.11
+    image: louislam/uptime-kuma:1
     container_name: smoke_uptime_kuma
     restart: unless-stopped
     environment:

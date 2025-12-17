@@ -33,6 +33,12 @@ jobs:
           set -e
           echo "🔍 Finding all compose files..."
           
+          # Create a temporary .env file from .env.example for validation
+          if [ -f ".env.example" ]; then
+            cp .env.example .env.ci
+            echo "📝 Created .env.ci from .env.example for validation"
+          fi
+          
           # Find all compose files
           COMPOSE_FILES=$(find . -type f \( -name "compose*.yml" -o -name "compose*.yaml" -o -name "docker-compose*.yml" -o -name "docker-compose*.yaml" -o -name "stack.yaml" -o -name "stack.yml" \) | sort)
           
@@ -47,6 +53,7 @@ jobs:
           
           FAILED=0
           VALIDATED=0
+          SKIPPED=0
           
           # Validate each file
           for FILE in $COMPOSE_FILES; do
@@ -55,24 +62,41 @@ jobs:
             # Skip files in .github directory or node_modules
             if [[ "$FILE" == *".github"* ]] || [[ "$FILE" == *"node_modules"* ]]; then
               echo "  ⏭️  Skipped (in excluded directory)"
+              SKIPPED=$((SKIPPED + 1))
               continue
             fi
             
-            # Try to validate the file
-            if docker compose -f "$FILE" config > /dev/null 2>&1; then
+            # Skip root compose.yaml as it uses 'include' which causes network conflicts when validated standalone
+            if [[ "$FILE" == "./compose.yaml" ]]; then
+              echo "  ⏭️  Skipped (root aggregator file with 'include' - validated via constituent files)"
+              SKIPPED=$((SKIPPED + 1))
+              continue
+            fi
+            
+            # Try to validate the file with .env.ci if it exists
+            VALIDATE_CMD="docker compose -f \"$FILE\" config"
+            if [ -f ".env.ci" ]; then
+              VALIDATE_CMD="docker compose -f \"$FILE\" --env-file .env.ci config"
+            fi
+            
+            if eval "$VALIDATE_CMD" > /dev/null 2>&1; then
               echo "  ✅ Valid"
               VALIDATED=$((VALIDATED + 1))
             else
               echo "  ❌ Invalid - showing error:"
-              docker compose -f "$FILE" config 2>&1 | sed 's/^/    /'
+              eval "$VALIDATE_CMD" 2>&1 | sed 's/^/    /'
               FAILED=$((FAILED + 1))
             fi
             echo ""
           done
           
+          # Clean up temporary env file
+          rm -f .env.ci
+          
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📊 Summary:"
           echo "  ✅ Valid:   $VALIDATED"
+          echo "  ⏭️  Skipped: $SKIPPED"
           echo "  ❌ Failed:  $FAILED"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           
