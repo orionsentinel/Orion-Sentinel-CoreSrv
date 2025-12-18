@@ -210,15 +210,23 @@ class MealieImporter:
 
                 logger.info(f"After filtering: {len(filtered_urls)} valid recipe URLs")
 
-                # Check already imported (unless force_domain)
-                if not force_domain or force_domain not in url:
-                    new_urls = []
-                    for url in filtered_urls:
-                        if not self.state_db.is_url_imported(url):
-                            new_urls.append(url)
-                        else:
-                            stats['skipped'] += 1
-                    filtered_urls = new_urls
+                # Check already imported (unless force_domain matches this source)
+                new_urls = []
+                for url in filtered_urls:
+                    # Skip already imported unless we're forcing this domain
+                    should_check = True
+                    if force_domain:
+                        # Check if this URL is from the forced domain
+                        from urllib.parse import urlparse
+                        url_domain = urlparse(url).netloc.lower().replace('www.', '')
+                        if force_domain.lower() in url_domain:
+                            should_check = False  # Don't skip even if imported
+
+                    if should_check and self.state_db.is_url_imported(url):
+                        stats['skipped'] += 1
+                    else:
+                        new_urls.append(url)
+                filtered_urls = new_urls
 
                 logger.info(f"New URLs to import: {len(filtered_urls)}")
 
@@ -317,12 +325,14 @@ class MealieImporter:
             logger.info(f"  [DRY RUN] Would import: {url}")
             return 'skipped'
 
-        # Get tags for this source
-        tags = [f"source:{source_key}"] + self.sources[0].get('tags', [])
+        # Get tags and categories for this source
+        tags = [f"source:{source_key}"]
         categories = []
         for source in self.sources:
             if source['key'] == source_key:
-                tags = [f"source:{source_key}"] + source.get('tags', [])
+                # Add source-specific tags (excluding the source: tag we already added)
+                source_tags = [t for t in source.get('tags', []) if not t.startswith('source:')]
+                tags.extend(source_tags)
                 categories = source.get('categories', [])
                 break
 

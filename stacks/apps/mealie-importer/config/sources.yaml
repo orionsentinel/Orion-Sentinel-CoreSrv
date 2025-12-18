@@ -261,7 +261,7 @@ sites:
     name: "Hot Thai Kitchen"
     base: "https://hot-thai-kitchen.com"
     categories: ["South East Asian"]
-    tags: ["source:hotthaikitchen", "cuisine:thai", "cuisine:sea"]
+    tags: ["source:hotthaikitchen", "cuisine:thai", "cuisine:southeast-asian"]
     discovery:
       rss_candidates:
         - "https://hot-thai-kitchen.com/feed/"
@@ -275,7 +275,7 @@ sites:
     name: "Rasa Malaysia"
     base: "https://rasamalaysia.com"
     categories: ["South East Asian"]
-    tags: ["source:rasamalaysia", "cuisine:sea"]
+    tags: ["source:rasamalaysia", "cuisine:malaysian", "cuisine:southeast-asian"]
     discovery:
       rss_candidates:
         - "https://rasamalaysia.com/feed/"
