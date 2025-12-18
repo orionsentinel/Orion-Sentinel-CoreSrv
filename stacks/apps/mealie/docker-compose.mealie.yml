@@ -1,0 +1,210 @@
+# Orion-Sentinel-CoreSrv Mealie Recipe Management Stack
+# Mealie v3.7.0 with Postgres database and automated recipe importer
+#
+# Access: http://192.168.8.205:9000
+#
+# Usage:
+#   cd stacks/apps/mealie
+#   docker compose -f docker-compose.mealie.yml up -d
+#
+# Or via make targets:
+#   make mealie-up           # Start the stack
+#   make mealie-down         # Stop the stack
+#   make mealie-import-backfill  # Run initial backfill
+#   make mealie-import-monthly   # Run monthly delta import
+
+services:
+  ############################
+  # MEALIE DATABASE (Postgres 16)
+  ############################
+
+  mealie-db:
+    image: postgres:16-alpine
+    container_name: orion_mealie_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${MEALIE_DB_NAME:-mealie}
+      - POSTGRES_USER=${MEALIE_DB_USER:-mealie}
+      - POSTGRES_PASSWORD=${MEALIE_POSTGRES_PASSWORD:?MEALIE_POSTGRES_PASSWORD is required}
+    volumes:
+      - mealie_pgdata:/var/lib/postgresql/data
+    networks:
+      - orion_mealie_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MEALIE_DB_USER:-mealie} -d ${MEALIE_DB_NAME:-mealie}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+  ############################
+  # MEALIE v3.7.0 - Recipe Management
+  ############################
+
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:v3.7.0
+    container_name: orion_mealie
+    restart: unless-stopped
+    depends_on:
+      mealie-db:
+        condition: service_healthy
+    environment:
+      # Core settings
+      - TZ=${TZ:-Europe/Amsterdam}
+      - BASE_URL=${MEALIE_BASE_URL:-http://192.168.8.205:9000}
+      - ALLOW_SIGNUP=${MEALIE_ALLOW_SIGNUP:-false}
+      - LOG_LEVEL=${MEALIE_LOG_LEVEL:-INFO}
+
+      # Database configuration (Postgres)
+      - DB_ENGINE=postgres
+      - POSTGRES_USER=${MEALIE_DB_USER:-mealie}
+      - POSTGRES_PASSWORD=${MEALIE_POSTGRES_PASSWORD:?MEALIE_POSTGRES_PASSWORD is required}
+      - POSTGRES_SERVER=mealie-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${MEALIE_DB_NAME:-mealie}
+
+      # OpenAI integration
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - OPENAI_ENABLE_IMAGE_SERVICES=${OPENAI_ENABLE_IMAGE_SERVICES:-false}
+
+      # Performance settings
+      - MAX_WORKERS=${MEALIE_MAX_WORKERS:-1}
+      - WEB_CONCURRENCY=${MEALIE_WEB_CONCURRENCY:-1}
+      - API_DOCS=${MEALIE_API_DOCS:-true}
+
+      # Security
+      - TOKEN_TIME=${MEALIE_TOKEN_TIME:-720}
+    volumes:
+      - mealie_data:/app/data
+    ports:
+      - "9000:9000"
+    networks:
+      - orion_mealie_net
+      - orion_backbone_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/api/app/about || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mealie.rule=Host(`mealie.${DOMAIN:-orion.lan}`)"
+      - "traefik.http.routers.mealie.entrypoints=websecure"
+      - "traefik.http.routers.mealie.tls=true"
+      - "traefik.http.services.mealie.loadbalancer.server.port=9000"
+
+  ############################
+  # MEALIE IMPORTER - Automated Recipe Import
+  ############################
+
+  mealie-importer:
+    build:
+      context: ../mealie-importer
+      dockerfile: Dockerfile
+    image: orion/mealie-importer:latest
+    container_name: orion_mealie_importer
+    restart: "no"
+    profiles:
+      - importer
+    depends_on:
+      mealie:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      # Mealie API configuration
+      - MEALIE_BASE_URL=${MEALIE_IMPORTER_BASE_URL:-http://mealie:9000}
+      - MEALIE_IMPORTER_TOKEN=${MEALIE_IMPORTER_TOKEN:?MEALIE_IMPORTER_TOKEN is required}
+      # Import configuration
+      - BACKFILL_PER_SITE=${MEALIE_BACKFILL_PER_SITE:-75}
+      - BACKFILL_TOTAL_CAP=${MEALIE_BACKFILL_TOTAL_CAP:-1500}
+      - MONTHLY_PER_SITE=${MEALIE_MONTHLY_PER_SITE:-40}
+      - MONTHLY_TOTAL_CAP=${MEALIE_MONTHLY_TOTAL_CAP:-800}
+      # Throttling
+      - THROTTLE_SECONDS=${MEALIE_THROTTLE_SECONDS:-1.0}
+      - REQUEST_TIMEOUT=${MEALIE_REQUEST_TIMEOUT:-30}
+      # User agent
+      - USER_AGENT=${MEALIE_USER_AGENT:-OrionSentinelMealieImporter/1.0 (+local homelab)}
+    volumes:
+      - ${MEALIE_IMPORTER_DATA_DIR:-./data/mealie-importer}:/data
+      - ../mealie-importer/config:/config:ro
+    networks:
+      - orion_mealie_net
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  ############################
+  # MEALIE IMPORTER CRON - Monthly Scheduled Runs
+  ############################
+
+  mealie-importer-cron:
+    build:
+      context: ../mealie-importer
+      dockerfile: Dockerfile.cron
+    image: orion/mealie-importer-cron:latest
+    container_name: orion_mealie_importer_cron
+    restart: unless-stopped
+    profiles:
+      - importer-cron
+    depends_on:
+      mealie:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      # Mealie API configuration
+      - MEALIE_BASE_URL=${MEALIE_IMPORTER_BASE_URL:-http://mealie:9000}
+      - MEALIE_IMPORTER_TOKEN=${MEALIE_IMPORTER_TOKEN:?MEALIE_IMPORTER_TOKEN is required}
+      # Import configuration (monthly mode)
+      - MONTHLY_PER_SITE=${MEALIE_MONTHLY_PER_SITE:-40}
+      - MONTHLY_TOTAL_CAP=${MEALIE_MONTHLY_TOTAL_CAP:-800}
+      # Throttling
+      - THROTTLE_SECONDS=${MEALIE_THROTTLE_SECONDS:-1.0}
+      - REQUEST_TIMEOUT=${MEALIE_REQUEST_TIMEOUT:-30}
+      # User agent
+      - USER_AGENT=${MEALIE_USER_AGENT:-OrionSentinelMealieImporter/1.0 (+local homelab)}
+      # Cron schedule (1st day of month at 03:20 Europe/Amsterdam)
+      - CRON_SCHEDULE=${MEALIE_CRON_SCHEDULE:-20 3 1 * *}
+    volumes:
+      - ${MEALIE_IMPORTER_DATA_DIR:-./data/mealie-importer}:/data
+      - ../mealie-importer/config:/config:ro
+    networks:
+      - orion_mealie_net
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+############################
+# VOLUMES
+############################
+
+volumes:
+  mealie_pgdata:
+    name: orion_mealie_pgdata
+  mealie_data:
+    name: orion_mealie_data
+
+############################
+# NETWORKS
+############################
+
+networks:
+  orion_mealie_net:
+    name: orion_mealie_net
+    driver: bridge
+  orion_backbone_net:
+    name: orion_backbone_net
+    external: true

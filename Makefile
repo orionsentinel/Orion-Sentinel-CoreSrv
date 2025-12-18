@@ -16,7 +16,7 @@
 #
 # ============================================================================
 
-.PHONY: help setup validate up-core up-media up-traefik up-gateway up-observability up-monitoring up-home-automation up-homeauto up-nvr up-extras up-all up-full down stop restart logs status ps health pull clean backup
+.PHONY: help setup validate up-core up-media up-traefik up-gateway up-observability up-monitoring up-home-automation up-homeauto up-nvr up-extras up-all up-full down stop restart logs status ps health pull clean backup mealie-up mealie-down mealie-logs mealie-import-backfill mealie-import-monthly mealie-import-dryrun mealie-cron-up
 
 # Default target
 .DEFAULT_GOAL := help
@@ -178,6 +178,56 @@ up-extras: ## Start additional services (Homepage, SearXNG, etc.)
 	@echo "Access your services:"
 	@echo "  Homepage:  http://localhost:3003 or https://homepage.${DOMAIN:-local}"
 	@echo "  SearXNG:   http://localhost:8888 or https://search.${DOMAIN:-local}"
+
+# ============================================================================
+# MEALIE v3.7.0 STACK
+# ============================================================================
+
+mealie-up: ## Start Mealie v3.7.0 stack (Mealie + PostgreSQL)
+	@echo "🍳 Starting Mealie v3.7.0 stack..."
+	@if [ ! -f stacks/apps/mealie/.env ]; then \
+		echo "⚠️  stacks/apps/mealie/.env not found. Copying from example..."; \
+		cp stacks/apps/mealie/.env.example stacks/apps/mealie/.env; \
+		echo ""; \
+		echo "⚠️  WARNING: You MUST edit stacks/apps/mealie/.env and set passwords!"; \
+		echo "   Required: MEALIE_POSTGRES_PASSWORD"; \
+		echo ""; \
+	fi
+	@cd stacks/apps/mealie && docker compose -f docker-compose.mealie.yml up -d
+	@echo "✓ Mealie stack started"
+	@echo ""
+	@echo "Access Mealie:"
+	@echo "  WebUI: http://192.168.8.205:9000"
+
+mealie-down: ## Stop Mealie stack
+	@echo "🛑 Stopping Mealie stack..."
+	@cd stacks/apps/mealie && docker compose -f docker-compose.mealie.yml down
+	@echo "✓ Mealie stack stopped"
+
+mealie-logs: ## View Mealie logs
+	@cd stacks/apps/mealie && docker compose -f docker-compose.mealie.yml logs -f
+
+mealie-import-backfill: ## Run initial recipe backfill (75 per site, 1500 total)
+	@echo "📥 Running Mealie recipe backfill..."
+	@cd stacks/apps/mealie && docker compose -f docker-compose.mealie.yml --profile importer run --rm \
+		mealie-importer python /app/importer.py --mode backfill
+	@echo "✓ Backfill complete"
+
+mealie-import-monthly: ## Run monthly recipe delta import (40 per site, 800 total)
+	@echo "📥 Running Mealie monthly import..."
+	@cd stacks/apps/mealie && docker compose -f docker-compose.mealie.yml --profile importer run --rm \
+		mealie-importer python /app/importer.py --mode monthly
+	@echo "✓ Monthly import complete"
+
+mealie-import-dryrun: ## Dry run - discover recipes without importing
+	@echo "🔍 Running Mealie import dry run..."
+	@cd stacks/apps/mealie && docker compose -f docker-compose.mealie.yml --profile importer run --rm \
+		mealie-importer python /app/importer.py --mode backfill --dry-run
+
+mealie-cron-up: ## Start Mealie with monthly auto-import cron
+	@echo "⏰ Starting Mealie with monthly cron..."
+	@cd stacks/apps/mealie && docker compose -f docker-compose.mealie.yml --profile importer-cron up -d
+	@echo "✓ Mealie cron started (runs 1st of month at 03:20)"
 
 up-full: up-all ## Start ALL services (media + gateway + monitoring + home automation)
 up-all: ## Alias for up-full (standardized command)

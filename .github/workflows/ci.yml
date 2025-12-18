@@ -62,6 +62,18 @@ jobs:
           docker compose -f compose.yml config > /dev/null
           echo "✓ Mealie-sync compose file is valid"
 
+      - name: Validate mealie stack compose file
+        run: |
+          cd stacks/apps/mealie
+          # Create minimal .env for validation
+          cat > .env << 'EOF'
+          MEALIE_POSTGRES_PASSWORD=test_password
+          MEALIE_IMPORTER_TOKEN=test_token
+          TZ=UTC
+          EOF
+          docker compose -f docker-compose.mealie.yml config > /dev/null
+          echo "✓ Mealie stack compose file is valid"
+
   yaml-lint:
     name: YAML Linting
     runs-on: ubuntu-latest
@@ -248,9 +260,19 @@ jobs:
           pip install -r app/requirements.txt
           pip install pytest
       
-      - name: Run pytest
+      - name: Run pytest for mealie-sync
         run: |
           cd stacks/apps/mealie-sync
+          pytest tests/ -v --tb=short
+      
+      - name: Install mealie-importer dependencies
+        run: |
+          cd stacks/apps/mealie-importer
+          pip install -r app/requirements.txt
+      
+      - name: Run pytest for mealie-importer
+        run: |
+          cd stacks/apps/mealie-importer
           pytest tests/ -v --tb=short
       
       - name: Verify .env.example exists
@@ -270,3 +292,21 @@ jobs:
             fi
           done
           echo "✓ All required variables documented in .env.example"
+      
+      - name: Verify mealie-importer .env.example
+        run: |
+          cd stacks/apps/mealie-importer
+          if [ ! -f .env.example ]; then
+            echo "✗ .env.example not found"
+            exit 1
+          fi
+          echo "✓ Mealie-importer .env.example exists"
+          
+          # Check required variables
+          for var in MEALIE_BASE_URL MEALIE_IMPORTER_TOKEN BACKFILL_PER_SITE MONTHLY_PER_SITE; do
+            if ! grep -q "$var" .env.example; then
+              echo "✗ Required variable $var not found"
+              exit 1
+            fi
+          done
+          echo "✓ All required variables documented"

@@ -1,0 +1,131 @@
+version: 1
+
+common:
+  deny_regex:
+    - '^https?://amp\.'
+    - '\.(jpg|jpeg|png|gif|webp|svg|pdf|zip)$'
+    - '/(wp-admin|wp-content|wp-json)/'
+    - '/(tag|tags|category|categories|author|page)/'
+    - '/(about|privacy|terms|cookies|cookie|gdpr|contact|press|media|advertis|jobs|careers)/'
+    - '/(search|s=|newsletter|subscribe|account|login|register)/'
+    - '/(shop|store|product|products|cart|checkout)/'
+    - '/(video|videos|podcast|audio)/'
+    - '/(comments|comment-page-)/'
+    - '/wprm_print/'
+
+  # Extra deny: tracking-heavy querystrings (importer should strip common tracking params anyway)
+  deny_query_regex:
+    - '[?&](utm_|fbclid=|gclid=|mc_cid=|mc_eid=|cmpid=|ref=|srsltid=)'
+
+sites:
+  ottolenghi:
+    allow_regex:
+      - '^https?://(www\.)?ottolenghi\.co\.uk/recipes/[^?#]+/?$'
+    deny_regex:
+      - '^https?://(www\.)?ottolenghi\.co\.uk/recipes/(?:category|tag|collections)/'
+
+  guardian_food:
+    allow_regex:
+      - '^https?://(www\.)?theguardian\.com/food/.*'
+      - '^https?://(www\.)?theguardian\.com/lifeandstyle/.*'
+    deny_regex:
+      - '^https?://(www\.)?theguardian\.com/(?:help|info|about|contact|privacy|cookie|terms|membership|support|jobs|subscribe)/'
+      - '^https?://(www\.)?theguardian\.com/(?:politics|sport|world|us-news|uk-news|business|technology|environment|science|culture|film|music|books|artanddesign|tv-and-radio)/'
+      - '/audio/'
+
+  meerasodha:
+    allow_regex:
+      - '^https?://(www\.)?meerasodha\.com/[^?#]+/?$'
+    deny_regex:
+      - '^https?://(www\.)?meerasodha\.com/(?:about|contact|privacy|terms)/'
+
+  thehappyfoodie:
+    allow_regex:
+      - '^https?://(www\.)?thehappyfoodie\.co\.uk/recipes/[^?#]+/?$'
+    deny_regex: []
+
+  akis:
+    allow_regex:
+      - '^https?://(www\.)?akispetretzikis\.com/(?:en/)?recipe/[^?#]+/?$'
+    deny_regex: []
+
+  recipetineats:
+    allow_regex:
+      - '^https?://(www\.)?recipetineats\.com/(?!category/|tag/|wp-json/|wp-content/|wp-admin/|cdn-cgi/|about/|contact/|privacy|terms|search/|wprm_print/)[^/?#]+/?$'
+      - '^https?://(www\.)?recipetineats\.com/(?!category/|tag/|wp-json/|wp-content/|wp-admin/|cdn-cgi/|about/|contact/|privacy|terms|search/|wprm_print/)[^/?#]+/[^/?#]+/?$'
+    deny_regex: []
+
+  greatbritishchefs:
+    allow_regex:
+      - '^https?://(www\.)?greatbritishchefs\.com/recipes/[^?#]+/?$'
+    deny_regex:
+      - '^https?://(www\.)?greatbritishchefs\.com/recipes/collections/'
+
+  bbcgoodfood:
+    allow_regex:
+      - '^https?://(www\.)?bbcgoodfood\.com/recipes/[^?#]+/?$'
+    deny_regex:
+      - '^https?://(www\.)?bbcgoodfood\.com/recipes/collection/.*'
+      - '^https?://(www\.)?bbcgoodfood\.com/recipes/author/.*'
+
+  themediterraneandish:
+    allow_regex:
+      - '^https?://(www\.)?themediterraneandish\.com/(?!category/|tag/|about/|privacy|contact/|shop/|travel/|resources/|cookbooks/)[^/?#]+/?$'
+    deny_regex: []
+
+  seriouseats:
+    allow_regex:
+      - '^https?://(www\.)?seriouseats\.com/recipes/[^?#]+/?$'
+      - '^https?://(www\.)?seriouseats\.com/[^/?#]+-recipe[^?#]*/?$'
+    deny_regex: []
+
+  bonappetit:
+    allow_regex:
+      - '^https?://(www\.)?bonappetit\.com/recipe/[^?#]+/?$'
+    deny_regex: []
+
+  saveur:
+    allow_regex:
+      - '^https?://(www\.)?saveur\.com/recipes/[^?#]+/?$'
+    deny_regex: []
+
+  feastingathome:
+    allow_regex:
+      - '^https?://(www\.)?feastingathome\.com/(?!category/|tag/|about/|contact/|privacy|terms|shop/|travel/|resources/)[^/?#]+/?$'
+    deny_regex: []
+
+  olivemagazine:
+    allow_regex:
+      - '^https?://(www\.)?olivemagazine\.com/recipes/[^?#]+/?$'
+    deny_regex: []
+
+  spainonafork:
+    allow_regex:
+      - '^https?://(www\.)?spainonafork\.com/(?!category/|tag/|about/|contact/|privacy|terms|shop/|travel/|resources/)[^/?#]+/?$'
+    deny_regex: []
+
+  patijinich:
+    allow_regex:
+      - '^https?://(www\.)?patijinich\.com/recipe/[^?#]+/?$'
+    deny_regex: []
+
+  rickbayless:
+    allow_regex:
+      - '^https?://(www\.)?rickbayless\.com/recipe/[^?#]+/?$'
+      - '^https?://(www\.)?rickbayless\.com/recipes/[^?#]+/?$'
+    deny_regex: []
+
+  hotthaikitchen:
+    allow_regex:
+      - '^https?://(www\.)?hot-thai-kitchen\.com/(?!category/|tag/|about/|contact/|privacy|terms|shop/|travel/|resources/|newsletter|subscribe)/[^?#]+/?$'
+    deny_regex: []
+
+  rasamalaysia:
+    allow_regex:
+      - '^https?://(www\.)?rasamalaysia\.com/(?!category/|tag/|about/|contact/|privacy|terms|shop/|travel|resources)/[^?#]+/?$'
+    deny_regex: []
+
+  thewoksoflife:
+    allow_regex:
+      - '^https?://(www\.)?thewoksoflife\.com/(?!category/|tag/|about/|contact/|privacy|terms|shop/|travel|resources|press|cookbook)/[^?#]+/?$'
+    deny_regex: []

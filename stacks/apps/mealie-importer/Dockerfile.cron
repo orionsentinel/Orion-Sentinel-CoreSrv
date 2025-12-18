@@ -1,0 +1,53 @@
+FROM python:3.11-slim
+
+# Install cron
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cron \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Install Python dependencies
+COPY app/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application modules
+COPY app/*.py .
+
+# Create directories for config and data
+RUN mkdir -p /config /data /var/log
+
+# Create entrypoint script
+RUN cat > /entrypoint.sh << 'EOF'
+#!/bin/bash
+set -e
+
+# Get cron schedule from environment (default: 1st of month at 03:20)
+CRON_SCHEDULE="${CRON_SCHEDULE:-20 3 1 * *}"
+
+# Create cron job file
+cat > /etc/cron.d/mealie-importer << CRONEOF
+# Mealie Recipe Importer - Monthly Run
+# Timezone is set via TZ environment variable
+${CRON_SCHEDULE} root cd /app && /usr/local/bin/python -u importer.py --mode monthly >> /data/cron.log 2>&1
+CRONEOF
+
+chmod 0644 /etc/cron.d/mealie-importer
+
+# Export environment variables for cron
+printenv | grep -E '^(MEALIE_|TZ|MONTHLY_|THROTTLE_|REQUEST_|USER_AGENT|BACKFILL_)' > /etc/environment
+
+echo "Starting Mealie Importer Cron with schedule: ${CRON_SCHEDULE}"
+echo "Timezone: ${TZ:-UTC}"
+
+# Run cron in foreground
+exec cron -f
+EOF
+
+RUN chmod +x /entrypoint.sh
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+
+ENTRYPOINT ["/entrypoint.sh"]
