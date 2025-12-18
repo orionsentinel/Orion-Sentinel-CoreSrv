@@ -1,0 +1,304 @@
+version: 1
+
+defaults:
+  mealie:
+    base_url: "http://192.168.8.205:9000"
+    accept_language: "en-US"
+    user_agent: "OrionSentinelMealieImporter/1.0 (+local homelab)"
+    include_tags: true
+
+  limits:
+    backfill_per_site: 75
+    monthly_max_new_per_site: 40
+    backfill_total_cap: 1500
+    monthly_total_cap: 800
+    bulk_batch_size: 25
+
+  crawling:
+    respect_robots_txt: true
+    throttle_seconds_per_domain: 1.0
+    timeout_seconds: 20
+    retry_on_status: [429, 500, 502, 503, 504]
+    max_retries: 4
+    backoff_base_seconds: 2.0
+    backoff_max_seconds: 60.0
+
+  filtering:
+    default_deny: true
+    require_recipe_schema_or_markers: true
+    min_ingredient_like_lines: 4
+    min_instruction_like_lines: 3
+    strip_url_fragment: true
+    strip_common_tracking_params: true
+    drop_query_params:
+      - utm_source
+      - utm_medium
+      - utm_campaign
+      - utm_term
+      - utm_content
+      - fbclid
+      - gclid
+      - mc_cid
+      - mc_eid
+      - cmpid
+      - ref
+      - srsltid
+
+sites:
+  - key: ottolenghi
+    name: "Ottolenghi"
+    base: "https://ottolenghi.co.uk"
+    categories: ["Ottolenghi Style"]
+    tags: ["source:ottolenghi", "style:ottolenghi"]
+    discovery:
+      rss_candidates: []
+      listing_pages:
+        - "https://ottolenghi.co.uk/recipes"
+      sitemap_candidates:
+        - "https://ottolenghi.co.uk/sitemap.xml"
+
+  - key: guardian_food
+    name: "The Guardian (Food / Ottolenghi-ish)"
+    base: "https://www.theguardian.com"
+    categories: ["Ottolenghi Style"]
+    tags: ["source:guardian", "style:ottolenghi"]
+    discovery:
+      listing_pages:
+        - "https://www.theguardian.com/food/series/yotam-ottolenghi-recipes"
+        - "https://www.theguardian.com/food/series/the-new-vegan"
+        - "https://www.theguardian.com/food"
+      rss_candidates:
+        - "https://www.theguardian.com/food/rss"
+        - "https://www.theguardian.com/food/series/yotam-ottolenghi-recipes/rss"
+        - "https://www.theguardian.com/food/series/the-new-vegan/rss"
+      sitemap_candidates: []
+
+  - key: meerasodha
+    name: "Meera Sodha"
+    base: "https://meerasodha.com"
+    categories: ["Ottolenghi Style"]
+    tags: ["source:meerasodha", "style:veg-forward"]
+    discovery:
+      rss_candidates:
+        - "https://meerasodha.com/feed/"
+      listing_pages:
+        - "https://meerasodha.com"
+      sitemap_candidates:
+        - "https://meerasodha.com/sitemap.xml"
+
+  - key: thehappyfoodie
+    name: "The Happy Foodie"
+    base: "https://thehappyfoodie.co.uk"
+    categories: ["Ottolenghi Style"]
+    tags: ["source:thehappyfoodie", "style:inspiration"]
+    discovery:
+      rss_candidates: []
+      listing_pages:
+        - "https://thehappyfoodie.co.uk/recipes/"
+      sitemap_candidates:
+        - "https://thehappyfoodie.co.uk/sitemap.xml"
+
+  - key: akis
+    name: "Akis Petretzikis"
+    base: "https://akispetretzikis.com"
+    categories: ["Mediterranean"]
+    tags: ["source:akis", "cuisine:greek"]
+    discovery:
+      rss_candidates: []
+      listing_pages:
+        - "https://akispetretzikis.com/en/recipes"
+      sitemap_candidates:
+        - "https://akispetretzikis.com/sitemap.xml"
+
+  - key: recipetineats
+    name: "RecipeTin Eats"
+    base: "https://www.recipetineats.com"
+    categories: ["Reference"]
+    tags: ["source:recipetineats", "style:weeknight", "cuisine:global"]
+    discovery:
+      rss_candidates:
+        - "https://www.recipetineats.com/feed/"
+      listing_pages:
+        - "https://www.recipetineats.com/recipes/"
+      sitemap_candidates:
+        - "https://www.recipetineats.com/sitemap_index.xml"
+        - "https://www.recipetineats.com/sitemap.xml"
+
+  - key: greatbritishchefs
+    name: "Great British Chefs"
+    base: "https://www.greatbritishchefs.com"
+    categories: ["Mediterranean"]
+    tags: ["source:greatbritishchefs", "style:chef"]
+    discovery:
+      rss_candidates: []
+      listing_pages:
+        - "https://www.greatbritishchefs.com/recipes"
+      sitemap_candidates:
+        - "https://www.greatbritishchefs.com/sitemap.xml"
+
+  - key: bbcgoodfood
+    name: "BBC Good Food"
+    base: "https://www.bbcgoodfood.com"
+    categories: ["Reference"]
+    tags: ["source:bbcgoodfood", "style:reference"]
+    discovery:
+      rss_candidates:
+        - "https://www.bbcgoodfood.com/feed"
+      listing_pages:
+        - "https://www.bbcgoodfood.com/recipes"
+      sitemap_candidates:
+        - "https://www.bbcgoodfood.com/sitemap.xml"
+
+  - key: themediterraneandish
+    name: "The Mediterranean Dish"
+    base: "https://www.themediterraneandish.com"
+    categories: ["Mediterranean"]
+    tags: ["source:themediterraneandish", "cuisine:mediterranean"]
+    discovery:
+      rss_candidates:
+        - "https://www.themediterraneandish.com/feed/"
+      listing_pages:
+        - "https://www.themediterraneandish.com/recipes/"
+      sitemap_candidates:
+        - "https://www.themediterraneandish.com/sitemap_index.xml"
+        - "https://www.themediterraneandish.com/sitemap.xml"
+
+  - key: seriouseats
+    name: "Serious Eats"
+    base: "https://www.seriouseats.com"
+    categories: ["Reference"]
+    tags: ["source:seriouseats", "style:technique"]
+    discovery:
+      rss_candidates: []
+      listing_pages:
+        - "https://www.seriouseats.com/recipes"
+      sitemap_candidates:
+        - "https://www.seriouseats.com/sitemap.xml"
+
+  - key: bonappetit
+    name: "Bon Appétit"
+    base: "https://www.bonappetit.com"
+    categories: ["Reference"]
+    tags: ["source:bonappetit", "style:inspiration"]
+    discovery:
+      rss_candidates: []
+      listing_pages:
+        - "https://www.bonappetit.com/recipes"
+      sitemap_candidates:
+        - "https://www.bonappetit.com/sitemap.xml"
+
+  - key: saveur
+    name: "SAVEUR"
+    base: "https://www.saveur.com"
+    categories: ["Reference"]
+    tags: ["source:saveur", "style:global"]
+    discovery:
+      rss_candidates: []
+      listing_pages:
+        - "https://www.saveur.com/recipes/"
+      sitemap_candidates:
+        - "https://www.saveur.com/sitemap.xml"
+
+  - key: feastingathome
+    name: "Feasting at Home"
+    base: "https://www.feastingathome.com"
+    categories: ["Ottolenghi Style"]
+    tags: ["source:feastingathome", "style:global", "style:veg-forward"]
+    discovery:
+      rss_candidates:
+        - "https://www.feastingathome.com/feed/"
+      listing_pages:
+        - "https://www.feastingathome.com/recipes/"
+      sitemap_candidates:
+        - "https://www.feastingathome.com/sitemap_index.xml"
+        - "https://www.feastingathome.com/sitemap.xml"
+
+  - key: olivemagazine
+    name: "Olive Magazine"
+    base: "https://www.olivemagazine.com"
+    categories: ["Mediterranean"]
+    tags: ["source:olivemagazine", "cuisine:mediterranean"]
+    discovery:
+      rss_candidates: []
+      listing_pages:
+        - "https://www.olivemagazine.com/recipes/"
+      sitemap_candidates:
+        - "https://www.olivemagazine.com/sitemap.xml"
+
+  - key: spainonafork
+    name: "Spain on a Fork"
+    base: "https://spainonafork.com"
+    categories: ["Mediterranean"]
+    tags: ["source:spainonafork", "cuisine:spanish"]
+    discovery:
+      rss_candidates:
+        - "https://spainonafork.com/feed/"
+      listing_pages:
+        - "https://spainonafork.com/recipes/"
+      sitemap_candidates:
+        - "https://spainonafork.com/sitemap.xml"
+
+  - key: patijinich
+    name: "Pati Jinich"
+    base: "https://patijinich.com"
+    categories: ["Mexican"]
+    tags: ["source:patijinich", "cuisine:mexican"]
+    discovery:
+      rss_candidates:
+        - "https://patijinich.com/feed/"
+      listing_pages:
+        - "https://patijinich.com/recipes/"
+      sitemap_candidates:
+        - "https://patijinich.com/sitemap.xml"
+
+  - key: rickbayless
+    name: "Rick Bayless"
+    base: "https://www.rickbayless.com"
+    categories: ["Mexican"]
+    tags: ["source:rickbayless", "cuisine:mexican"]
+    discovery:
+      rss_candidates: []
+      listing_pages:
+        - "https://www.rickbayless.com/recipes/"
+      sitemap_candidates:
+        - "https://www.rickbayless.com/sitemap.xml"
+
+  - key: hotthaikitchen
+    name: "Hot Thai Kitchen"
+    base: "https://hot-thai-kitchen.com"
+    categories: ["South East Asian"]
+    tags: ["source:hotthaikitchen", "cuisine:thai", "cuisine:sea"]
+    discovery:
+      rss_candidates:
+        - "https://hot-thai-kitchen.com/feed/"
+      listing_pages:
+        - "https://hot-thai-kitchen.com/recipes/"
+        - "https://hot-thai-kitchen.com/category/all-recipes/"
+      sitemap_candidates:
+        - "https://hot-thai-kitchen.com/sitemap.xml"
+
+  - key: rasamalaysia
+    name: "Rasa Malaysia"
+    base: "https://rasamalaysia.com"
+    categories: ["South East Asian"]
+    tags: ["source:rasamalaysia", "cuisine:sea"]
+    discovery:
+      rss_candidates:
+        - "https://rasamalaysia.com/feed/"
+      listing_pages:
+        - "https://rasamalaysia.com/recipes/"
+      sitemap_candidates:
+        - "https://rasamalaysia.com/sitemap.xml"
+
+  - key: thewoksoflife
+    name: "The Woks of Life"
+    base: "https://thewoksoflife.com"
+    categories: ["South East Asian"]
+    tags: ["source:thewoksoflife", "cuisine:asian", "cuisine:chinese"]
+    discovery:
+      rss_candidates:
+        - "https://thewoksoflife.com/feed/"
+      listing_pages:
+        - "https://thewoksoflife.com/recipes/"
+      sitemap_candidates:
+        - "https://thewoksoflife.com/sitemap.xml"
