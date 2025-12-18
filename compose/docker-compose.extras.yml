@@ -43,8 +43,6 @@ services:
       - "traefik.http.routers.homepage.entrypoints=websecure"
       - "traefik.http.routers.homepage.tls=true"
       - "traefik.http.services.homepage.loadbalancer.server.port=3000"
-      # Homepage is for internal use, protect with Authelia
-      - "traefik.http.routers.homepage.middlewares=secure-chain@file"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
       interval: 30s
@@ -80,8 +78,6 @@ services:
       - "traefik.http.routers.searxng.entrypoints=websecure"
       - "traefik.http.routers.searxng.tls=true"
       - "traefik.http.services.searxng.loadbalancer.server.port=8080"
-      # SearXNG can be public or protected - default to protected
-      - "traefik.http.routers.searxng.middlewares=secure-chain@file"
     cap_drop:
       - ALL
     cap_add:

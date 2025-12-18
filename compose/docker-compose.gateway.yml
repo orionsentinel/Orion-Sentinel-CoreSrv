@@ -1,10 +1,8 @@
 # Orion-Sentinel-CoreSrv Gateway Module
-# Traefik + Authelia + Redis for reverse proxy and SSO
+# Traefik for reverse proxy
 #
 # This module provides:
 #   - Traefik v3: Reverse proxy with automatic HTTPS
-#   - Authelia: Single Sign-On with 2FA support
-#   - Redis: Session storage for Authelia
 #
 # Usage:
 #   ./scripts/orionctl up gateway
@@ -58,63 +56,7 @@ services:
       retries: 3
       start_period: 10s
 
-  ############################
-  # AUTHELIA: SSO
-  ############################
 
-  authelia:
-    image: authelia/authelia:4.38.17
-    container_name: orion_authelia
-    restart: unless-stopped
-    depends_on:
-      - redis
-    environment:
-      - TZ=${TZ:-Europe/Amsterdam}
-      # Secrets (MUST be changed in env/.env.gateway)
-      - AUTHELIA_JWT_SECRET=${AUTHELIA_JWT_SECRET:-changeme}
-      - AUTHELIA_SESSION_SECRET=${AUTHELIA_SESSION_SECRET:-changeme}
-      - AUTHELIA_STORAGE_ENCRYPTION_KEY=${AUTHELIA_STORAGE_ENCRYPTION_KEY:-changeme}
-    volumes:
-      - ${GATEWAY_CONFIG_ROOT:-/srv/docker/gateway}/authelia:/config
-    networks:
-      - orion_gateway_net
-      - orion_backbone_net
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:9091/api/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.authelia.rule=Host(`auth.${DOMAIN:-local}`)"
-      - "traefik.http.routers.authelia.entrypoints=websecure"
-      - "traefik.http.routers.authelia.tls=true"
-      - "traefik.http.routers.authelia.middlewares=rate-limit-auth@file"
-      - "traefik.http.services.authelia.loadbalancer.server.port=9091"
-
-  ############################
-  # REDIS: Session Storage
-  ############################
-
-  redis:
-    image: redis:7-alpine
-    container_name: orion_redis
-    restart: unless-stopped
-    command: redis-server --save 60 1 --loglevel warning
-    volumes:
-      - ${GATEWAY_CONFIG_ROOT:-/srv/docker/gateway}/redis:/data
-    networks:
-      - orion_gateway_net
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
 
 ############################
 # NETWORKS

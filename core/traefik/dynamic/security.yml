@@ -27,14 +27,6 @@ http:
         customResponseHeaders:
           X-Robots-Tag: "noindex, nofollow, noarchive, nosnippet"
     
-    # Secure chain - combines security headers + Authelia SSO
-    # Use this for all admin services requiring authentication
-    secure-chain:
-      chain:
-        middlewares:
-          - "security-headers"
-          - "authelia-forwardauth"
-    
     # Compression middleware (reduce bandwidth)
     compression:
       compress:

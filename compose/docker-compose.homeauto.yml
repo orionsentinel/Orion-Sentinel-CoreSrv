@@ -76,7 +76,6 @@ services:
       - "traefik.http.routers.zigbee2mqtt.rule=Host(`zigbee.${DOMAIN:-local}`)"
       - "traefik.http.routers.zigbee2mqtt.entrypoints=websecure"
       - "traefik.http.routers.zigbee2mqtt.tls=true"
-      - "traefik.http.routers.zigbee2mqtt.middlewares=secure-chain@file"
       - "traefik.http.services.zigbee2mqtt.loadbalancer.server.port=8080"
 
   ############################
@@ -135,7 +134,6 @@ services:
       - "traefik.http.routers.mealie.rule=Host(`mealie.${DOMAIN:-local}`)"
       - "traefik.http.routers.mealie.entrypoints=websecure"
       - "traefik.http.routers.mealie.tls=true"
-      - "traefik.http.routers.mealie.middlewares=secure-chain@file"
       - "traefik.http.services.mealie.loadbalancer.server.port=9000"
 
   ############################
@@ -192,7 +190,6 @@ services:
       - "traefik.http.routers.dsmr.rule=Host(`energy.${DOMAIN:-local}`)"
       - "traefik.http.routers.dsmr.entrypoints=websecure"
       - "traefik.http.routers.dsmr.tls=true"
-      - "traefik.http.routers.dsmr.middlewares=secure-chain@file"
       - "traefik.http.services.dsmr.loadbalancer.server.port=80"
 
 ############################

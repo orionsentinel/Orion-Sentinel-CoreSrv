@@ -12,8 +12,6 @@ http:
         - websecure
       service: dns-pi-service
       tls: true
-      middlewares:
-        - secure-chain@file
     
     # NetSec Pi AI Stack (Orion Sentinel)
     # Provides access to NetSec AI monitoring stack at security.local
@@ -23,8 +21,6 @@ http:
         - websecure
       service: netsec-pi-service
       tls: true
-      middlewares:
-        - secure-chain@file
 
   services:
     # DNS Pi backend (192.168.8.240)

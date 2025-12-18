@@ -98,7 +98,6 @@ services:
       - "traefik.http.routers.prometheus.rule=Host(`prometheus.${DOMAIN:-local}`)"
       - "traefik.http.routers.prometheus.entrypoints=websecure"
       - "traefik.http.routers.prometheus.tls=true"
-      - "traefik.http.routers.prometheus.middlewares=secure-chain@file"
       - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
   ############################
@@ -171,7 +170,6 @@ services:
       - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN:-local}`)"
       - "traefik.http.routers.grafana.entrypoints=websecure"
       - "traefik.http.routers.grafana.tls=true"
-      - "traefik.http.routers.grafana.middlewares=secure-chain@file"
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
   ############################
@@ -200,7 +198,6 @@ services:
       - "traefik.http.routers.uptime-kuma.rule=Host(`status.${DOMAIN:-local}`)"
       - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
       - "traefik.http.routers.uptime-kuma.tls=true"
-      - "traefik.http.routers.uptime-kuma.middlewares=secure-chain@file"
       - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
 
 ############################
