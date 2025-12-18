@@ -10,7 +10,6 @@ This guide explains how to backup and restore your Orion-Sentinel-CoreSrv instal
 
 1. **Service Configurations** (`${CONFIG_ROOT}`)
    - Traefik configuration and ACME certificates
-   - Authelia users, policies, and database
    - Media service configs (Sonarr, Radarr, Prowlarr, Jellyfin, etc.)
    - Homepage dashboard configuration
    - ~500MB-2GB depending on services
@@ -252,7 +251,6 @@ docker compose ps
 ./scripts/orionctl.sh health
 
 # Verify in browser
-# - https://auth.local → Authelia login
 # - https://jellyfin.local → Jellyfin
 # - https://grafana.local → Grafana with dashboards
 ```
@@ -317,7 +315,6 @@ tar -xzf /srv/orion-sentinel-core/backups/orion-backup-*.tar.gz
 
 # 2. Verify critical files exist
 test -f orion-backup-*/env/.env.core && echo "✓ .env.core exists"
-test -d orion-backup-*/config/authelia && echo "✓ Authelia config exists"
 test -d orion-backup-*/config/sonarr && echo "✓ Sonarr config exists"
 
 # 3. Verify backup is recent
@@ -337,7 +334,7 @@ rm -rf /tmp/backup-test
 1. Spin up a test VM or spare machine
 2. Follow full restore procedure above
 3. Verify all services start and work
-4. Test login to Authelia, Grafana, Jellyfin
+4. Test login to Grafana, Jellyfin
 5. Verify data integrity (Sonarr shows all series, etc.)
 
 ## Disaster Recovery Checklist
@@ -353,7 +350,6 @@ If CoreSrv dies completely:
 - [ ] Extract backup
 - [ ] Verify `.env` files are present
 - [ ] Start services with `orionctl.sh up-full`
-- [ ] Verify Authelia login works
 - [ ] Verify media services (Sonarr, Radarr, Jellyfin)
 - [ ] Verify monitoring (Grafana dashboards)
 - [ ] Verify Nextcloud (if used)
@@ -434,18 +430,6 @@ docker network ls | grep orion
 
 # Recreate networks if missing
 docker compose up --no-start
-```
-
-### Authelia Database Corrupt
-
-```bash
-# Remove database, will be recreated
-rm /srv/orion-sentinel-core/config/authelia/db.sqlite3
-
-# Restart Authelia
-docker compose restart authelia
-
-# Reconfigure users in users.yml
 ```
 
 ### Nextcloud Won't Start
