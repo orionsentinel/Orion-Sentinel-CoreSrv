@@ -17,6 +17,8 @@ services:
   ############################
   # VALKEY (Redis compatible)
   # Rate limiting for SearXNG
+  # Note: Valkey is a Redis fork maintained by the Linux Foundation
+  #       after Redis changed to a non-open-source license
   ############################
   
   valkey:
@@ -181,6 +183,9 @@ services:
       - WATCH_DIR=/watch
       - INDEX_NAME=local_documents
       - SCAN_INTERVAL=30
+      - MAX_CONTENT_SIZE=50000
+      - STARTUP_WAIT=10
+      - FILE_SETTLE_TIME=2
     volumes:
       - ${DATA_ROOT:-/srv/dataaicore}/search/local-search:/watch:ro
       - ./local-indexer.py:/app/indexer.py:ro

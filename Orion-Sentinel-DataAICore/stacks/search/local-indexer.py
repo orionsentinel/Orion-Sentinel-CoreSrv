@@ -26,6 +26,9 @@ TIKA_URL = os.getenv("TIKA_URL", "http://tika:9998")
 WATCH_DIR = os.getenv("WATCH_DIR", "/watch")
 INDEX_NAME = os.getenv("INDEX_NAME", "local_documents")
 SCAN_INTERVAL = int(os.getenv("SCAN_INTERVAL", "30"))
+MAX_CONTENT_SIZE = int(os.getenv("MAX_CONTENT_SIZE", "50000"))
+STARTUP_WAIT = int(os.getenv("STARTUP_WAIT", "10"))
+FILE_SETTLE_TIME = int(os.getenv("FILE_SETTLE_TIME", "2"))
 
 # Supported file extensions
 SUPPORTED_EXTENSIONS = {".pdf", ".txt", ".md", ".docx", ".odt", ".rtf", ".doc"}
@@ -111,7 +114,7 @@ class DocumentIndexer:
                 "id": doc_id,
                 "title": file_path.stem,
                 "filename": file_path.name,
-                "content": content[:50000],  # Limit content size
+                "content": content[:MAX_CONTENT_SIZE],  # Limit content size (configurable)
                 "type": file_path.suffix[1:],  # Remove leading dot
                 "path": str(file_path),
                 "hash": file_hash,
@@ -163,8 +166,33 @@ class DocumentEventHandler(FileSystemEventHandler):
         
         if file_path.suffix.lower() in SUPPORTED_EXTENSIONS:
             logger.info(f"New file detected: {file_path.name}")
-            time.sleep(1)  # Wait for file to be fully written
+            # Wait for file to be fully written - check size stability
+            self._wait_for_file_stable(file_path)
             self.indexer.index_document(file_path)
+    
+    def _wait_for_file_stable(self, file_path: Path, max_wait: int = 10) -> bool:
+        """Wait for file size to stabilize before processing."""
+        last_size = -1
+        stable_count = 0
+        wait_time = 0
+        
+        while wait_time < max_wait:
+            try:
+                current_size = file_path.stat().st_size
+                if current_size == last_size:
+                    stable_count += 1
+                    if stable_count >= 2:  # File size stable for 2 checks
+                        return True
+                else:
+                    stable_count = 0
+                last_size = current_size
+                time.sleep(FILE_SETTLE_TIME)
+                wait_time += FILE_SETTLE_TIME
+            except (FileNotFoundError, OSError):
+                time.sleep(FILE_SETTLE_TIME)
+                wait_time += FILE_SETTLE_TIME
+        
+        return False
     
     def on_modified(self, event):
         """Handle file modification."""
@@ -175,7 +203,8 @@ class DocumentEventHandler(FileSystemEventHandler):
         
         if file_path.suffix.lower() in SUPPORTED_EXTENSIONS:
             logger.info(f"File modified: {file_path.name}")
-            time.sleep(1)  # Wait for file to be fully written
+            # Wait for file to be fully written - check size stability
+            self._wait_for_file_stable(file_path)
             self.indexer.index_document(file_path)
 
 
@@ -192,8 +221,8 @@ def main():
     logger.info("=" * 60)
     
     # Wait for services to be ready
-    logger.info("Waiting for Meilisearch and Tika to be ready...")
-    time.sleep(10)
+    logger.info(f"Waiting {STARTUP_WAIT} seconds for Meilisearch and Tika to be ready...")
+    time.sleep(STARTUP_WAIT)
     
     # Initialize indexer
     try:

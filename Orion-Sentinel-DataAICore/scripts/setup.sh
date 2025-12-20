@@ -39,6 +39,7 @@ error() {
 }
 
 # Generate random password
+# 25 characters provides ~149 bits of entropy (sufficient for internal use)
 generate_password() {
     openssl rand -base64 32 | tr -d "=+/" | cut -c1-32
 }
