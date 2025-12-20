@@ -96,9 +96,3 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-networks:
-  homecore_internal:
-    name: homecore_internal
-    driver: bridge
-    external: true

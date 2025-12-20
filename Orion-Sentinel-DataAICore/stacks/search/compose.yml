@@ -197,9 +197,3 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-networks:
-  dataaicore_internal:
-    name: dataaicore_internal
-    driver: bridge
-    external: true
