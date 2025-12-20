@@ -1,0 +1,63 @@
+# Orion-Sentinel-DataAICore .gitignore
+# Exclude secrets, data, backups, and local files
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.secret
+*.key
+*.pem
+secrets/
+
+# Local data directories (never commit actual data)
+/data/
+*.db
+*.sqlite
+*.log
+
+# Backup files
+backups/
+*.tar.gz
+*.zip
+*.bak
+
+# Temporary files
+tmp/
+*.tmp
+.DS_Store
+Thumbs.db
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker volumes and local state
+docker-compose.override.yml
+.docker/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+logs/
+*.log
+
+# Caddy data (certificates)
+caddy/data/
+caddy/config/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

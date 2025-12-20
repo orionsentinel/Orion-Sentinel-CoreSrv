@@ -1,0 +1,113 @@
+# Orion-Sentinel-DataAICore - LLM Stack
+# Ollama + Open WebUI for local AI interactions
+#
+# Usage:
+#   ./scripts/orionctl.sh up llm
+#
+# To edit this file:
+#   sudo nano stacks/llm/compose.yml
+#
+# Access:
+#   Open WebUI: http://<OPTIPLEX_IP>:3000
+#
+# Pull models:
+#   docker exec -it orion_dataaicore_ollama ollama pull llama3.2:3b
+
+services:
+  ############################
+  # OLLAMA
+  # Local LLM inference engine
+  ############################
+  
+  ollama:
+    image: ollama/ollama:latest
+    container_name: orion_dataaicore_ollama
+    restart: unless-stopped
+    profiles:
+      - llm
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      # GPU support (uncomment if you have NVIDIA GPU)
+      # - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ${DATA_ROOT:-/srv/dataaicore}/llm/ollama:/root/.ollama
+    # Internal only by default
+    # Uncomment to expose to LAN if needed for other services
+    # ports:
+    #   - "0.0.0.0:11434:11434"
+    expose:
+      - "11434"
+    networks:
+      - dataaicore_internal
+    security_opt:
+      - no-new-privileges:true
+    # Uncomment for GPU support (NVIDIA)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # OPEN WEBUI
+  # ChatGPT-like interface for Ollama
+  ############################
+  
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: orion_dataaicore_open_webui
+    restart: unless-stopped
+    profiles:
+      - llm
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      # Ollama backend
+      - OLLAMA_BASE_URL=http://ollama:11434
+      # WebUI settings
+      - WEBUI_NAME=Orion AI
+      - WEBUI_AUTH=true
+      - ENABLE_SIGNUP=${OPEN_WEBUI_SIGNUP:-true}
+      # Optional: RAG (Retrieval Augmented Generation)
+      - ENABLE_RAG_WEB_SEARCH=false
+      - ENABLE_IMAGE_GENERATION=false
+    volumes:
+      - ${DATA_ROOT:-/srv/dataaicore}/llm/open-webui:/app/backend/data
+    ports:
+      - "0.0.0.0:3000:8080"
+    networks:
+      - dataaicore_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  dataaicore_internal:
+    name: dataaicore_internal
+    driver: bridge
+    external: true

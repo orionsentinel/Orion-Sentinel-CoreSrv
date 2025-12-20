@@ -1,0 +1,197 @@
+# Orion-Sentinel-DataAICore - Nextcloud Stack
+# Self-hosted cloud storage with Postgres and Redis
+#
+# Usage:
+#   ./scripts/orionctl.sh up nextcloud
+#
+# To edit this file:
+#   sudo nano stacks/nextcloud/compose.yml
+#
+# Access:
+#   http://<OPTIPLEX_IP>:8080
+
+services:
+  ############################
+  # NEXTCLOUD DATABASE (Postgres)
+  ############################
+  
+  nextcloud-db:
+    image: postgres:16-alpine
+    container_name: orion_dataaicore_nextcloud_db
+    restart: unless-stopped
+    profiles:
+      - nextcloud
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - POSTGRES_DB=${NEXTCLOUD_DB_NAME:-nextcloud}
+      - POSTGRES_USER=${NEXTCLOUD_DB_USER:-nextcloud}
+      - POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
+    volumes:
+      - ${DATA_ROOT:-/srv/dataaicore}/nextcloud/postgres:/var/lib/postgresql/data
+    networks:
+      - dataaicore_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${NEXTCLOUD_DB_USER:-nextcloud} -d ${NEXTCLOUD_DB_NAME:-nextcloud}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # REDIS
+  # Cache and file locking
+  ############################
+  
+  nextcloud-redis:
+    image: redis:7-alpine
+    container_name: orion_dataaicore_nextcloud_redis
+    restart: unless-stopped
+    profiles:
+      - nextcloud
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    command: redis-server --requirepass ${NEXTCLOUD_REDIS_PASSWORD}
+    volumes:
+      - ${DATA_ROOT:-/srv/dataaicore}/nextcloud/redis:/data
+    networks:
+      - dataaicore_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  ############################
+  # NEXTCLOUD
+  # Self-hosted cloud storage
+  ############################
+  
+  nextcloud:
+    image: nextcloud:29-apache
+    container_name: orion_dataaicore_nextcloud
+    restart: unless-stopped
+    profiles:
+      - nextcloud
+    depends_on:
+      nextcloud-db:
+        condition: service_healthy
+      nextcloud-redis:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      # Database configuration
+      - POSTGRES_HOST=nextcloud-db
+      - POSTGRES_DB=${NEXTCLOUD_DB_NAME:-nextcloud}
+      - POSTGRES_USER=${NEXTCLOUD_DB_USER:-nextcloud}
+      - POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASSWORD}
+      # Redis configuration
+      - REDIS_HOST=nextcloud-redis
+      - REDIS_HOST_PASSWORD=${NEXTCLOUD_REDIS_PASSWORD}
+      # Admin account (only used on first run)
+      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER:-admin}
+      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
+      # Trusted domains (space-separated)
+      - NEXTCLOUD_TRUSTED_DOMAINS=${NEXTCLOUD_TRUSTED_DOMAINS:-localhost}
+      # Performance
+      - PHP_MEMORY_LIMIT=${NEXTCLOUD_PHP_MEMORY:-512M}
+      - PHP_UPLOAD_LIMIT=${NEXTCLOUD_UPLOAD_LIMIT:-10G}
+    volumes:
+      - ${DATA_ROOT:-/srv/dataaicore}/nextcloud/app:/var/www/html
+    ports:
+      # Local access only by default
+      - "0.0.0.0:8080:80"
+    networks:
+      - dataaicore_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/status.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # NEXTCLOUD CRON
+  # Background job execution
+  ############################
+  
+  nextcloud-cron:
+    image: nextcloud:29-apache
+    container_name: orion_dataaicore_nextcloud_cron
+    restart: unless-stopped
+    profiles:
+      - nextcloud
+    depends_on:
+      - nextcloud
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT:-/srv/dataaicore}/nextcloud/app:/var/www/html
+    entrypoint: /cron.sh
+    networks:
+      - dataaicore_internal
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  ############################
+  # CADDY (Reverse Proxy)
+  # Profile: public-nextcloud
+  # ONLY for public Nextcloud access
+  ############################
+  
+  caddy:
+    image: caddy:2-alpine
+    container_name: orion_dataaicore_caddy
+    restart: unless-stopped
+    profiles:
+      - public-nextcloud
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - ORION_DOMAIN=${ORION_DOMAIN}
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+    volumes:
+      - ${DATA_ROOT:-/srv/dataaicore}/nextcloud/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${DATA_ROOT:-/srv/dataaicore}/nextcloud/caddy/data:/data
+      - ${DATA_ROOT:-/srv/dataaicore}/nextcloud/caddy/config:/config
+    networks:
+      - dataaicore_internal
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  dataaicore_internal:
+    name: dataaicore_internal
+    driver: bridge
