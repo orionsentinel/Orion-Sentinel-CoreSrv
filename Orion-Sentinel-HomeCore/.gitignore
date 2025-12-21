@@ -1,0 +1,61 @@
+# Orion-Sentinel-HomeCore .gitignore
+# Exclude secrets, data, backups, and local files
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.secret
+*.key
+*.pem
+secrets/
+
+# Local data directories (never commit actual data)
+/data/
+*.db
+*.sqlite
+*.log
+
+# Backup files
+backups/
+*.tar.gz
+*.zip
+*.bak
+
+# Temporary files
+tmp/
+*.tmp
+.DS_Store
+Thumbs.db
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker volumes and local state
+docker-compose.override.yml
+.docker/
+
+# Node modules (if using any custom scripts)
+node_modules/
+
+# Python cache (if using any custom scripts)
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+logs/
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

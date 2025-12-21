@@ -1,0 +1,98 @@
+# Orion-Sentinel-HomeCore - Mealie Stack
+# Recipe and meal planning with Postgres database
+#
+# Usage:
+#   ./scripts/orionctl.sh up mealie
+#
+# To edit this file:
+#   sudo nano stacks/mealie/compose.yml
+#
+# Access:
+#   http://<PI_IP>:9000
+
+services:
+  ############################
+  # MEALIE DATABASE (Postgres)
+  ############################
+  
+  mealie-db:
+    image: postgres:15-alpine
+    container_name: orion_homecore_mealie_db
+    restart: unless-stopped
+    profiles:
+      - mealie
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - POSTGRES_DB=${MEALIE_DB_NAME:-mealie}
+      - POSTGRES_USER=${MEALIE_DB_USER:-mealie}
+      - POSTGRES_PASSWORD=${MEALIE_DB_PASSWORD}
+    volumes:
+      - ${DATA_ROOT:-/srv/homecore}/mealie/postgres:/var/lib/postgresql/data
+    networks:
+      - homecore_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MEALIE_DB_USER:-mealie} -d ${MEALIE_DB_NAME:-mealie}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # MEALIE
+  # Recipe management and meal planning
+  ############################
+  
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:v1.12.0
+    container_name: orion_homecore_mealie
+    restart: unless-stopped
+    profiles:
+      - mealie
+    depends_on:
+      mealie-db:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      # Base URL for the application
+      - BASE_URL=http://${HOSTNAME:-homecore}:9000
+      # Disable signup after initial user creation
+      - ALLOW_SIGNUP=${MEALIE_ALLOW_SIGNUP:-true}
+      # Performance settings for Pi 5
+      - MAX_WORKERS=2
+      - WEB_CONCURRENCY=2
+      - API_DOCS=true
+      # Database configuration
+      - DB_ENGINE=postgres
+      - POSTGRES_USER=${MEALIE_DB_USER:-mealie}
+      - POSTGRES_PASSWORD=${MEALIE_DB_PASSWORD}
+      - POSTGRES_SERVER=mealie-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${MEALIE_DB_NAME:-mealie}
+    volumes:
+      - ${DATA_ROOT:-/srv/homecore}/mealie/data:/app/data
+    ports:
+      - "0.0.0.0:9000:9000"
+    networks:
+      - homecore_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/api/app/about"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

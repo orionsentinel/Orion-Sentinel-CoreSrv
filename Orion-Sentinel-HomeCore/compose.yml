@@ -1,0 +1,32 @@
+# Orion-Sentinel-HomeCore - Main Compose File
+# Top-level orchestrator for all HomeCore stacks
+#
+# This file uses Docker Compose include directive to load stack-specific files.
+# Manage services using the orionctl.sh wrapper script.
+#
+# Usage:
+#   ./scripts/orionctl.sh up              # Start Home Assistant
+#   ./scripts/orionctl.sh up mqtt         # Start HA + MQTT
+#   ./scripts/orionctl.sh up mqtt zigbee  # Start HA + MQTT + Zigbee
+#   ./scripts/orionctl.sh up mealie       # Start HA + Mealie
+#
+# Or use docker compose directly:
+#   docker compose up -d
+#   docker compose --profile mqtt up -d
+#   docker compose --profile mqtt --profile zigbee up -d
+#
+# To edit stack configurations:
+#   sudo nano stacks/homeassistant/compose.yml
+#   sudo nano stacks/mealie/compose.yml
+
+include:
+  # Home Assistant + optional add-ons (MQTT, Zigbee, Node-RED, ESPHome)
+  - path: stacks/homeassistant/compose.yml
+    env_file: .env
+  
+  # Mealie recipe management (optional profile: mealie)
+  - path: stacks/mealie/compose.yml
+    env_file: .env
+
+# The homecore_internal network is created by the homeassistant stack
+# All services communicate via this network

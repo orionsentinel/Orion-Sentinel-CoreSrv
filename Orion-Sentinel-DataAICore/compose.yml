@@ -1,0 +1,41 @@
+# Orion-Sentinel-DataAICore - Main Compose File
+# Top-level orchestrator for all DataAICore stacks
+#
+# This file uses Docker Compose include directive to load stack-specific files.
+# Manage services using the orionctl.sh wrapper script.
+#
+# Usage:
+#   ./scripts/orionctl.sh up nextcloud        # Start Nextcloud
+#   ./scripts/orionctl.sh up search           # Start search stack
+#   ./scripts/orionctl.sh up llm              # Start LLM stack
+#   ./scripts/orionctl.sh up nextcloud search llm  # Start all
+#
+# Or use docker compose directly:
+#   docker compose --profile nextcloud up -d
+#   docker compose --profile search up -d
+#   docker compose --profile llm up -d
+#
+# Optional public Nextcloud (Phase 2):
+#   ./scripts/orionctl.sh up nextcloud public-nextcloud
+#
+# To edit stack configurations:
+#   sudo nano stacks/nextcloud/compose.yml
+#   sudo nano stacks/search/compose.yml
+#   sudo nano stacks/llm/compose.yml
+
+include:
+  # Nextcloud + Postgres + Redis (profile: nextcloud)
+  # Optional Caddy reverse proxy (profile: public-nextcloud)
+  - path: stacks/nextcloud/compose.yml
+    env_file: .env
+  
+  # SearXNG + Valkey + Meilisearch + Tika + Local Indexer (profile: search)
+  - path: stacks/search/compose.yml
+    env_file: .env
+  
+  # Ollama + Open WebUI (profile: llm)
+  - path: stacks/llm/compose.yml
+    env_file: .env
+
+# The dataaicore_internal network is created by the first stack to start
+# All services communicate via this network

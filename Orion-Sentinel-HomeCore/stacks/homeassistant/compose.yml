@@ -1,0 +1,174 @@
+# Orion-Sentinel-HomeCore - Home Assistant Stack
+# Home Assistant + optional add-ons (MQTT, Zigbee, Node-RED, ESPHome)
+#
+# Usage:
+#   ./scripts/orionctl.sh up              # Home Assistant only
+#   ./scripts/orionctl.sh up mqtt         # + Mosquitto MQTT
+#   ./scripts/orionctl.sh up mqtt zigbee  # + Zigbee2MQTT
+#
+# To edit this file:
+#   sudo nano stacks/homeassistant/compose.yml
+
+services:
+  ############################
+  # HOME ASSISTANT
+  ############################
+  
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2024.12
+    container_name: orion_homecore_homeassistant
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT:-/srv/homecore}/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "0.0.0.0:8123:8123"
+    networks:
+      - homecore_internal
+    privileged: true
+    # Note: Using privileged for USB device access and Bluetooth
+    # For production, consider using specific device mappings instead
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # MOSQUITTO (MQTT Broker)
+  # Profile: mqtt
+  ############################
+  
+  mosquitto:
+    image: eclipse-mosquitto:2.0.18
+    container_name: orion_homecore_mosquitto
+    restart: unless-stopped
+    profiles:
+      - mqtt
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT:-/srv/homecore}/mosquitto/config:/mosquitto/config
+      - ${DATA_ROOT:-/srv/homecore}/mosquitto/data:/mosquitto/data
+      - ${DATA_ROOT:-/srv/homecore}/mosquitto/log:/mosquitto/log
+    ports:
+      - "0.0.0.0:1883:1883"
+      - "0.0.0.0:9001:9001"
+    networks:
+      - homecore_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  ############################
+  # ZIGBEE2MQTT
+  # Profile: zigbee
+  # Requires: USB Zigbee coordinator
+  ############################
+  
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:1.40.2
+    container_name: orion_homecore_zigbee2mqtt
+    restart: unless-stopped
+    profiles:
+      - zigbee
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT:-/srv/homecore}/zigbee2mqtt:/app/data
+      - /run/udev:/run/udev:ro
+    ports:
+      - "0.0.0.0:8080:8080"
+    devices:
+      - ${ZIGBEE_DEVICE:-/dev/ttyACM0}:/dev/ttyACM0
+    networks:
+      - homecore_internal
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # NODE-RED
+  # Profile: nodered
+  # Visual automation flows
+  ############################
+  
+  nodered:
+    image: nodered/node-red:4.0
+    container_name: orion_homecore_nodered
+    restart: unless-stopped
+    profiles:
+      - nodered
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT:-/srv/homecore}/nodered:/data
+    ports:
+      - "0.0.0.0:1880:1880"
+    networks:
+      - homecore_internal
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # ESPHOME
+  # Profile: esphome
+  # ESP8266/ESP32 device management
+  ############################
+  
+  esphome:
+    image: ghcr.io/esphome/esphome:2024.11.3
+    container_name: orion_homecore_esphome
+    restart: unless-stopped
+    profiles:
+      - esphome
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT:-/srv/homecore}/esphome:/config
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "0.0.0.0:6052:6052"
+    network_mode: host
+    # Note: Using host network for mDNS device discovery
+    privileged: true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  homecore_internal:
+    name: homecore_internal
+    driver: bridge

@@ -1,0 +1,204 @@
+# Orion-Sentinel-DataAICore - Search Stack
+# SearXNG meta-search + Meilisearch local documents + Tika extraction
+#
+# Usage:
+#   ./scripts/orionctl.sh up search
+#
+# To edit this file:
+#   sudo nano stacks/search/compose.yml
+#
+# Access:
+#   SearXNG: http://<OPTIPLEX_IP>:8888
+#
+# Local document indexing:
+#   Drop files into: ${DATA_ROOT}/search/local-search/
+
+services:
+  ############################
+  # VALKEY (Redis compatible)
+  # Rate limiting for SearXNG
+  # Note: Valkey is a Redis fork maintained by the Linux Foundation
+  #       after Redis changed to a non-open-source license
+  ############################
+  
+  valkey:
+    image: valkey/valkey:7-alpine
+    container_name: orion_dataaicore_valkey
+    restart: unless-stopped
+    profiles:
+      - search
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT:-/srv/dataaicore}/search/valkey:/data
+    networks:
+      - dataaicore_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  ############################
+  # SEARXNG
+  # Privacy-focused meta-search engine
+  ############################
+  
+  searxng:
+    image: searxng/searxng:latest
+    container_name: orion_dataaicore_searxng
+    restart: unless-stopped
+    profiles:
+      - search
+    depends_on:
+      valkey:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - SEARXNG_BASE_URL=http://${HOSTNAME:-dataaicore}:8888/
+      - SEARXNG_SECRET=${SEARXNG_SECRET}
+    volumes:
+      - ${DATA_ROOT:-/srv/dataaicore}/search/searxng:/etc/searxng
+    ports:
+      - "0.0.0.0:8888:8080"
+    networks:
+      - dataaicore_internal
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # MEILISEARCH
+  # Fast search engine for local documents
+  # NOT published - accessed via SearXNG
+  ############################
+  
+  meilisearch:
+    image: getmeili/meilisearch:v1.11
+    container_name: orion_dataaicore_meilisearch
+    restart: unless-stopped
+    profiles:
+      - search
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - MEILI_ENV=production
+      - MEILI_MASTER_KEY=${MEILISEARCH_MASTER_KEY}
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_HTTP_ADDR=0.0.0.0:7700
+    volumes:
+      - ${DATA_ROOT:-/srv/dataaicore}/search/meilisearch:/meili_data
+    # NOT published to host - internal only
+    expose:
+      - "7700"
+    networks:
+      - dataaicore_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:7700/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ############################
+  # APACHE TIKA
+  # Document text extraction
+  # NOT published - internal only
+  ############################
+  
+  tika:
+    image: apache/tika:latest-full
+    container_name: orion_dataaicore_tika
+    restart: unless-stopped
+    profiles:
+      - search
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    # NOT published to host - internal only
+    expose:
+      - "9998"
+    networks:
+      - dataaicore_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9998/tika"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  ############################
+  # LOCAL INDEXER
+  # Watches local-search directory and indexes documents
+  # Custom lightweight service
+  # NOT published - background service
+  ############################
+  
+  local-indexer:
+    image: python:3.11-slim
+    container_name: orion_dataaicore_local_indexer
+    restart: unless-stopped
+    profiles:
+      - search
+    depends_on:
+      meilisearch:
+        condition: service_healthy
+      tika:
+        condition: service_healthy
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - MEILISEARCH_URL=http://meilisearch:7700
+      - MEILISEARCH_API_KEY=${MEILISEARCH_MASTER_KEY}
+      - TIKA_URL=http://tika:9998
+      - WATCH_DIR=/watch
+      - INDEX_NAME=local_documents
+      - SCAN_INTERVAL=30
+      - MAX_CONTENT_SIZE=50000
+      - STARTUP_WAIT=10
+      - FILE_SETTLE_TIME=2
+    volumes:
+      - ${DATA_ROOT:-/srv/dataaicore}/search/local-search:/watch:ro
+      - ./local-indexer.py:/app/indexer.py:ro
+    working_dir: /app
+    command: >
+      sh -c "pip install --no-cache-dir meilisearch requests watchdog &&
+             python indexer.py"
+    networks:
+      - dataaicore_internal
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
